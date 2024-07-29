@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+'''Calculate a histogram of cloud occurrence binned by 2-m air temperature and SST.
+
+bin/calc_ta_sst_co_hist TYPE SURF ALCF OUTPUT
+
+Arguments:
+
+  TYPE    One of: generic, aa (RSV Aurora Australis), nbp (RVIB NB Palmer), polarstern (RV Polarstern), tangaroa (RV Tangaroa).
+  SURF    File with surface data containing 2-m temperature (tas) and SST (ts) (NetCDF).
+  ALCF    Directory with ALCF lidar output.
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+
+np.seterr(divide='ignore', invalid='ignore')
+
+MAX_TIME_DIFF = 6/24 # days.
+
+TS_BINS = np.arange(-30, 30.5, 0.5) + 273.15
+TAS_BINS = np.arange(-30, 30.5, 0.5) + 273.15
+#ZHALF = np.arange(0, 10200, 200)
+ZHALF = np.array([0, 100, 200, 500, 1000, 1500, 2000], np.float64)
+ZFULL = 0.5*(ZHALF[1:] + ZHALF[:-1])
+
+if __name__ == '__main__':
+	if len(sys.argv) != 5:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	surf = sys.argv[2]
+	alcf = sys.argv[3]
+	output = sys.argv[4]
+
+	d_surf = ds.read(surf)
+	for var in ['ts', 'tas']:
+		if ds.attr(d_surf, 'units', var=var) == 'degree_C':
+			d_surf[var] += 273.15
+
+	d_alcf = ds.readdir(alcf, ['time', 'zfull', 'cloud_mask'], merge='time')
+	time = d_alcf['time']
+	cloud_mask = d_alcf['cloud_mask']
+	if cloud_mask.ndim == 3:
+		cloud_mask = cloud_mask[:,:,0] # First column.
+	zfull = d_alcf['zfull'][0,:]
+
+	n = len(time)
+	ts = np.full(n, np.nan, np.float64)
+	tas = np.full(n, np.nan, np.float64)
+
+	if type_ == 'generic':
+		surf_ts = d_surf['ts']
+		surf_tas = d_surf['tas']
+	elif type_ == 'aa':
+		surf_ts = d_surf['ts4']
+		surf_tas = d_surf['tas18']
+	elif type_ == 'nbp':
+		surf_ts = d_surf['ts_ml1']
+		surf_tas = d_surf['tas19']
+	elif type_ == 'polarstern':
+		surf_ts = d_surf['ts5']
+		surf_tas = d_surf['tas29']
+	elif type_ == 'tangaroa':
+		surf_ts = d_surf['ts_ml1']
+		surf_tas = d_surf['tas15']
+	else:
+		raise ValueError('Invalid type "%s"' % type_)
+
+	for i, t in enumerate(time):
+		j = np.argmin(np.abs(d_surf['time'] - t))
+		t2 = d_surf['time'][j]
+		dt = t2 - t
+		if np.abs(dt) > MAX_TIME_DIFF:
+			continue
+		ts[i] = np.interp(t, d_surf['time'], surf_ts,
+			left=np.nan, right=np.nan)
+		tas[i] = np.interp(t, d_surf['time'], surf_tas,
+			left=np.nan, right=np.nan)
+	mask = np.isfinite(ts) & np.isfinite(tas)
+	ts = ts[mask]
+	tas = tas[mask]
+	cloud_mask = cloud_mask[mask,:]
+
+	#n, m, l = len(TAS_BINS), len(TS_BINS), cloud_mask.shape[1]
+	n, m, l = len(TAS_BINS), len(TS_BINS), len(ZFULL)
+	hist = np.zeros((n, m, l + 1), np.int64)
+	hist_n = np.zeros((n, m, l + 1), np.int64)
+	ii = np.searchsorted(TAS_BINS, tas)
+	jj = np.searchsorted(TS_BINS, ts)
+	kk = np.arange(np.sum(mask))
+	uu = np.searchsorted(ZHALF, zfull) - 1
+
+	for i, j, k in zip(ii, jj, kk):
+		#hist[i,j,:] += cloud_mask[k,:]
+		#hist_n[i,j,:] += 1
+		hist[i,j,uu] += cloud_mask[k,:]
+		hist_n[i,j,:] += 1
+
+	hist = hist[:,:,:-1]
+	hist_n = hist_n[:,:,:-1]
+
+	ds.write(output, {
+		'tas': TAS_BINS,
+		'ts': TS_BINS,
+		'hist': hist,
+		'hist_n': hist_n,
+		'density': hist/hist_n,
+		'zfull': ZFULL,
+		'zhalf': ZHALF,
+		'.': {
+			'tas': {'.dims': ['tas']},
+			'ts': {'.dims': ['ts']},
+			'hist': {'.dims': ['tas', 'ts', 'zfull']},
+			'hist_n': {'.dims': ['tas', 'ts', 'zfull']},
+			'density': {'.dims': ['tas', 'ts', 'zfull']},
+			'zfull': {'.dims': ['zfull']},
+			'zhalf': {'.dims': ['zhalf']},
+		},
+	})

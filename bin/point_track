@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+'''Create track from a point.
+
+Usage: point_track START END LON LAT OUTPUT
+
+Arguments:
+
+  START   Start time (ISO).
+  END     End time (ISO).
+  LON     Longitude (degrees East).
+  LAT     Latitude (degrees North).
+  OUTPUT  Output file (NetCDF).
+'''
+
+STEP = 1/24 # days
+
+import sys
+import numpy as np
+import aquarius_time as aq
+import ds_format as ds
+
+if __name__ == '__main__':
+	if len(sys.argv) != 6:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	start = aq.from_iso(sys.argv[1])
+	end = aq.from_iso(sys.argv[2])
+	lon = float(sys.argv[3])
+	lat = float(sys.argv[4])
+	output = sys.argv[5]
+	time_new = np.arange(start, end + STEP, STEP)
+	n = len(time_new)
+	lon_new = np.full(n, lon, np.float64)
+	lat_new = np.full(n, lat, np.float64)
+	ds.write(output, {
+		'time': time_new,
+		'lon': lon_new,
+		'lat': lat_new,
+		'.': {
+			'time': {
+				'.dims': ['time'],
+				'units': 'days since -4713-11-24 12:00 UTC',
+				'calendar': 'proleptic_gregorian',
+				'standard_name': 'time',
+			},
+			'lat': {
+				'.dims': ['time'],
+				'standard_name': 'latitude',
+			},
+			'lon': {
+				'.dims': ['time'],
+				'standard_name': 'longitude',
+			},
+		}
+	})

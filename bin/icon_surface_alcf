@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+'''Extract surface data from ICON ALCF output.
+
+Usage: icon_surface_alcf INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input directory - the output of alcf model (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+
+	print('<- %s' % input_)
+	d = ds.readdir(input_, jd=True, merge='time', parallel=True)
+
+	dout = {}
+	for k in ['time', 'lat', 'lon', 'tas', 'ts']:
+		dout[k] = d[k]
+		ds.meta(dout, k, ds.meta(d, k))
+
+	n, m = d['zfull'].shape
+	mo = d['to'].shape[1]
+	jj = np.arange(m)
+	dout['tas15'] = np.full(n, np.nan, np.float64)
+	dout['tas18'] = np.full(n, np.nan, np.float64)
+	dout['tas19'] = np.full(n, np.nan, np.float64)
+	dout['tas29'] = np.full(n, np.nan, np.float64)
+	dout['ts4'] = np.full(n, np.nan, np.float64)
+	dout['ts5'] = np.full(n, np.nan, np.float64)
+	dout['ts_ml1'] = np.full(n, np.nan, np.float64)
+
+	#mask = np.abs(d['to'] - 273.15) < 1e-6
+	#d['to'][mask] = np.nan
+
+	for h in [15, 18, 19, 29]:
+		for i in range(n):
+			j = np.interp(h, d['zfull'][i,:], jj, left=np.nan, right=np.nan)
+			if np.isfinite(j):
+				ji = int(j)
+				jr = j - ji
+				var = 'tas%d' % h
+				dout[var][i] = (1 - jr)*d['ta'][i,ji] + jr*d['ta'][i,ji+1]
+
+	for i in range(n):
+		k = mo
+		for j in reversed(range(mo)):
+			if np.abs(d['to'][i,j] - 273.15) < 1e-6:
+				k = j
+			else:
+				break
+		if k > 0:
+			jjo = np.arange(k)
+			depth = d['depth'][0,:][:k]
+			for h in [4, 5]:
+				j = np.interp(h, depth, jjo, left=np.nan, right=k-1)
+				ji = int(j)
+				jr = j - ji
+				var = 'ts%d' % h
+				dout[var][i] = (1 - jr)*d['to'][i,ji] + jr*d['to'][i,ji+1]
+			dout['ts_ml1'][i] = d['to'][i,0]
+
+	for h in [15, 18, 19, 29]:
+		var = 'tas%d' % h
+		dout['.'][var] = {
+			'.dims': ['time'],
+			'standard_name': 'air_temperature',
+			'long_name': 'air temperature at %dm' % h,
+			'units': 'K',
+		}
+
+	dout['.']['ts_ml1'] = {
+		'.dims': ['time'],
+		'standard_name': 'sea_surface_temperature',
+		'long_name': 'sea surface temperature at first ocean model level',
+		'units': 'K',
+	}
+
+	for h in [4, 5]:
+		var = 'ts%d' % h
+		dout['.'][var] = {
+			'.dims': ['time'],
+			'standard_name': 'sea_surface_temperature',
+			'long_name': 'sea surface temperature at %dm depth' % h,
+			'units': 'K',
+		}
+
+	print('-> %s' % output)
+	ds.write(output, dout)

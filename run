@@ -1,0 +1,216 @@
+#!/bin/bash
+set -x
+
+model="icon_cy3"
+model_years="2021 2022 2023 2024"
+keep_vars="rlut rsdt rsut"
+
+task="$1"
+
+recalib () {
+	in="$1"
+	out="$2"
+	mkdir -p "$out"
+	parallel -t alcf lidar default "$in" "$out" cloud_threshold: 5e-6 bsd: 5e-6 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/chm15k
+	parallel -t alcf lidar default "$in" "$out" cloud_threshold: 5e-6 bsd: 10e-6 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51
+}
+
+run_alcf () {
+	model="$1"
+	in="$2"
+	out="$3"
+	mkdir -p "$out"
+	parallel -j 4 -u alcf auto model "$model" cl51 "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 njobs: 4 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51_voyages
+	parallel -j 1 -u alcf auto model "$model" cl51 "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 track_gap: 0 njobs: 16 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51_stations
+	parallel -j 4 -u alcf auto model "$model" chm15k "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 njobs: 4 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/chm15k
+}
+
+filter () {
+	in="$1"
+	out="$2"
+	mkdir -p "$(dirname "$out")"
+	parallel -j1 -t bin/alcf_filter "$in" data/obs/track_hourly_40S+/{}.nc -40 "$out" :::: input/obs/sources/all
+}
+
+filter_sic () {
+	in="$1"
+	out="$2"
+	mkdir -p "$(dirname "$out")"
+	parallel -j1 bin/alcf_filter_sic "$in" data/obs/surface_sic/{}.nc "$out" :::: input/obs/sources/all
+}
+
+filter_lts () {
+	stab="$1"
+	in="$2"
+	out="$3"
+	mkdir -p "$(dirname "$out")"
+	parallel -j1 bin/alcf_filter_lts_eis lts "$stab" 12 "$in" "$out" :::: input/obs/sources/all
+}
+
+stats () {
+	in="$1"
+	out="$2"
+	filter1="$3"
+	filter2="$4"
+	filter3="$5"
+	mkdir -p "$(dirname "$out")"
+	parallel -t alcf stats "$in" "$out" filter_include: { "$filter1" "$filter2" "$filter3" } :::: input/obs/sources/all
+}
+
+stats_all () {
+	in="$1"
+	out="$2"
+	filter="$3"
+	filter_noprecip="$4"
+	filter_sic="$5"
+	year="$6"
+	prefix=recalib_bsd_noprecip_sic
+	stats "$in" "$out/40S+_$prefix/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_cyc/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/cyc/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_nocyc/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/nocyc/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_cyc_2r/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/cyc_2r/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_nocyc_2r/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/nocyc_2r/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_lts_stable/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/lts_stable/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_lts_unstable/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter/lts_unstable/$year/{}.nc" "$filter_sic/$year/{}.nc"
+	stats_lat "$in" "$out/40-55S_$prefix/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter_sic/$year/{}.nc" -55 -40
+	stats_lat "$in" "$out/55S+_$prefix/$year/{}.nc" "$filter_precip/$year/{}.nc" "$filter_sic/$year/{}.nc" -90 -55
+}
+
+case "$task" in
+
+#convert_track)
+#	mkdir -p data/obs/track_hourly_40S+
+#	parallel 'bin/convert_track2 default data/obs/track/{}.nc data/obs/track_hourly_40S+/{}.nc -90 -40' :::: input/obs/sources/all
+#	bin/point_track 2016-04-03 2018-03-14 158.940000 -54.496800 data/obs/track_hourly_40S+/mcq16-18.nc
+#	;;
+
+download_era5)
+	parallel -t -j1 'mkdir -p input/era5/{}; alcf download era5 track: data/obs/track_hourly_40S+/{}.nc input/era5/{}' :::: input/obs/sources/all
+	;;
+
+download_merra2)
+	parallel -t -j1 'mkdir -p input/merra2/{}; alcf download merra2 track: data/obs/track_hourly_40S+/{}.nc input/merra2/{}' :::: input/obs/sources/all
+	;;
+
+alcf_merra2)
+	run_alcf merra2 input/merra2/{} data/merra2/samples/{}
+	;;
+
+alcf_era5)
+	run_alcf era5 input/era5/{} data/era5/samples/{}
+	;;
+
+surface_sic)
+	mkdir -p data/obs/surface_sic
+	parallel -t bin/surface_sic data/obs/track_hourly_40S+/{}.nc /d/var/ds/nsidc/{amsr-e\,amsr2-unified-l3-daily-12.5km-v001,sea-ice-ps-s25km-v2.0} data/obs/surface_sic/{}.nc :::: input/obs/sources/all
+	;;
+
+recalib_obs)
+	recalib input/obs/samples/{}/lidar data/obs/samples/{}/lidar_recalib_bsd data/obs/track_hourly_40S+/{}.nc
+	;;
+
+recalib_model)
+	for year in $model_years; do
+		recalib "input/$model/$year/{}/lidar" "data/$model/samples/$year/{}/lidar_recalib_bsd" none
+	done
+	;;
+
+recalib_merra2)
+	recalib data/merra2/samples/{}/lidar data/merra2/samples/{}/lidar_recalib_bsd none
+	;;
+
+recalib_era5)
+	recalib data/era5/samples/{}/lidar data/era5/samples/{}/lidar_recalib_bsd none
+	;;
+
+alcf_ceres_obs)
+	for src in $(cat input/obs/sources/all); do
+		mkdir -p "data/obs/samples/$src/lidar_recalib_bsd_rad"
+		parallel bin/alcf_ceres {} input/ceres/ "data/obs/samples/$src/lidar_recalib_bsd_rad/{/}" ::: "data/obs/samples/$src/lidar_recalib_bsd/"*.nc
+	done
+	;;
+
+filter_model)
+	for year in $model_years; do
+		filter "input/$model/$year/{}/model" "data/$model/filter/40S+_noprecip_thres0.1/$year/{}.nc"
+	done
+	;;
+
+filter_merra2)
+	filter data/merra2/samples/{}/model data/merra2/filter/40S+_noprecip_thres0.1/{}.nc
+	;;
+
+filter_era5)
+	filter data/era5/samples/{}/model data/era5/filter/40S+_noprecip_thres0.1/{}.nc
+	;;
+
+filter_sic)
+	for year in $model_years; do
+		filter_sic "input/$model/$year/{}/model" "data/$model/filter/sic/$year/{}.nc"
+	done
+	;;
+
+filter_sic_merra2)
+	filter_sic data/merra2/samples/{}/model data/merra2/filter/sic/{}.nc
+	;;
+
+filter_sic_era5)
+	filter_sic data/era5/samples/{}/model data/era5/filter/sic/{}.nc
+	;;
+
+filter_lts_merra2)
+	filter_lts stable data/merra2/samples/{}/model data/merra2/filter/lts_stable/{}.nc
+	filter_lts unstable data/merra2/samples/{}/model data/merra2/filter/lts_unstable/{}.nc
+	;;
+
+filter_lts_era5)
+	filter_lts stable data/era5/samples/{}/model data/era5/filter/lts_stable/{}.nc
+	filter_lts unstable data/era5/samples/{}/model data/era5/filter/lts_unstable/{}.nc
+	;;
+
+filter_lts_model)
+	for year in $model_years; do
+		filter_lts stable "input/$model/$year/{}/model" "data/$model/filter/lts_stable/$year/{}.nc"
+		filter_lts unstable "input/$model/$year/{}/model" "data/$model/filter/lts_unstable/$year/{}.nc"
+	done
+	;;
+
+stats_model)
+	for year in $model_years; do
+		stats_all "data/$model/samples/$year/{}/lidar_recalib_bsd" "data/$model/stats" "data/$model/filter" "data/$model/filter/40S+_noprecip_thres0.1" "data/$model/filter/sic" "$year"
+	done
+	;;
+
+stats_obs)
+	stats_all data/obs/samples/{}/lidar_recalib_bsd "data/$model/stats_obs" data/obs/filter data/obs/filter/40S+_noprecip "data/$model/filter/sic" ""
+	;;
+
+stats_merra2)
+	stats_all data/merra2/samples/{}/lidar_recalib_bsd data/merra2/stats data/merra2/filter data/merra2/filter/40S+_noprecip_thres0.1 data/merra2/filter/sic ""
+;;
+
+stats_era5)
+	stats_all data/era5/samples/{}/lidar_recalib_bsd data/era5/stats data/era5/filter data/era5/filter/40S+_noprecip_thres0.1 data/era5/filter/sic ""
+	;;
+
+calc_ta_sst_hist_model)
+	for x in aa nbp polarstern tangaroa; do
+		parallel bin/calc_ta_sst_co_hist "$x" data/icon_surface_alcf/{}.nc data/icon_alcf/{}/lidar data/ta_sst_co_hist/icon_alcf/{}.nc :::: "input/voyages/model/$x"
+	done
+	bin/merge_ta_sst_co_hist data/ta_sst_co_hist/icon_alcf/ data/ta_sst_co_hist_icon_alcf.nc
+;;
+
+calc_ta_sst_hist_obs)
+	parallel bin/calc_ta_sst_co_hist generic input/polarstern/surface/{}.nc input/polarstern/cl51/alcf/{}/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/polarstern
+	parallel bin/calc_ta_sst_co_hist generic input/nz/{}/l1/surface.nc input/nz/{}/l2/*_alcf/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/tangaroa
+	parallel bin/calc_ta_sst_co_hist generic input/nz/{}/l1/surface.nc input/nz/{}/l2/*_alcf/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/nbp
+	bin/calc_ta_sst_co_hist generic input/aa/marcus/surface_underway.nc input/aa/marcus/alcf_ceil/lidar data/ta_sst_co_hist/obs/marcus.nc
+	parallel bin/calc_ta_sst_co_hist generic input/aa/aa15-16/l1/underway/{}.nc input/aa/aa15-16/l2/cl51_alcf/lidar data/ta_sst_co_hist/obs/aa15-16_{}.nc ::: v1 v2 v3
+	bin/merge_ta_sst_co_hist data/ta_sst_co_hist/obs/ data/ta_sst_co_hist_obs.nc
+;;
+
+*)
+echo "Invalid task \"$task\"" >&2
+;;
+
+esac

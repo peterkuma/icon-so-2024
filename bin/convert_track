@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+'''Convert R/V Polarstern (CSV) or default (NetCDF) track CSV to NetCDF, optionally coercing the year. The output is remapped to 1-hourly. The result is split into multiple segments if needed.
+
+Usage: convert_track TYPE INPUT OUTPUT [YEAR [LAT1 LAT2]]
+
+Arguments:
+
+  TYPE    Type of input. One of: polarstern (R/V Polarstern), default (variables "lat", "lon", "time").
+  INPUT   Input file.
+  OUTPUT  Output file prefix. If multiple segments are output, their name is <prefix>_seg<i>.nc.
+  YEAR    Year to replace year in track time with.
+  LAT1    Start latitude.
+  LAT2    End latitude.
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+STEP = 1/24 # days
+MAX_GAP = 6/24 # days
+SECOND = 1/(24*60*60)
+
+KEY = {
+	'polarstern': {
+		'lat': 'Latitude',
+		'lon': 'Longitude',
+		'time': 'Date/Time',
+	},
+	'default': {
+		'lat': 'lat',
+		'lon': 'lon',
+		'time': 'time',
+	},
+}
+
+def coerce_time(time, year):
+	date = aq.to_date(time)
+	y = date[1]
+	if np.all(y == year):
+		return time
+	n = len(y)
+	ones = np.ones(n, int)
+	zeros = np.zeros(n, int)
+	start_old = aq.from_date([ones, y, ones, ones, zeros, zeros, zeros, zeros])
+	start_new_1 = aq.from_date([1, year, 1, 1, 0, 0, 0])
+	start_new = np.full(n, start_new_1)
+	dt = time - start_old
+	time_new = start_new + dt
+	# Do this again in case the day overflows because of the old year is a leap
+	# year while the new is not, and the time as near the end of the year.
+	return coerce_time(time_new, year)
+
+def track_at(x, time, t):
+	n = len(x)
+	i = np.searchsorted(time, t)
+	res = np.full(n, np.nan, np.float64)
+	mask1 = (i == 0) | (i == n)
+	inorm = i.copy()
+	inorm[mask1] = 1
+	i1 = i - 1
+	i2 = i
+	t1 = time[i1]
+	t2 = time[i2]
+	x1 = x[i1]
+	x2 = x[i2]
+	mask2 = (t2 - t1) > MAX_GAP
+	f = (t - t1)/(t2 - t1)
+	res = x1*(1 - f) + x2*f
+	mask = mask1 | mask2
+	res[mask] = np.nan
+	return res
+
+def round_time(time):
+	res = time % SECOND
+	return np.where(res < 0.5*SECOND, time - res, time + SECOND - res)
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (4, 5, 7):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	input_ = sys.argv[2]
+	output = sys.argv[3]
+
+	if len(sys.argv) >= 5:
+		year = int(sys.argv[4])
+		leap = (year % 4 == 0) and ((year % 100 != 0) or (year % 400 == 0))
+	else:
+		year = None
+
+	if len(sys.argv) == 7:
+		lat1 = sys.argv[5]
+		lat2 = sys.argv[6]
+	else:
+		lat1 = -90
+		lat2 = 90
+
+	d = ds.read(input_, jd=True)
+
+	key = KEY[type_]
+
+	time = d[key['time']]
+	lat = d[key['lat']]
+	lon = d[key['lon']]
+
+	if input_.endswith('.csv'):
+		time = aq.from_iso(time)
+
+	mask = (lat >= lat1) & (lat <= lat2)
+	time = time[mask]
+	lat = lat[mask]
+	lon = lon[mask]
+
+	time = round_time(time)
+
+	t1, t2 = np.min(time), np.max(time)
+	res = t1 % STEP
+	t1 = t1 + STEP - res if res >= SECOND else t1 - res
+	time_new = np.arange(t1, t2, STEP)
+	lat = track_at(lat, time, time_new)
+	lon = track_at(lon, time, time_new)
+	time = round_time(time_new)
+
+	if year is not None:
+		time = coerce_time(time, year)
+
+	dt = np.diff(time)
+	ii = np.where(dt < 0)[0]
+	ii = list(ii) + [len(time) - 1]
+	segments = []
+	j = 0
+	for i in ii:
+		segments += [{
+			'time': time[j:(i + 1)],
+			'lat': lat[j:(i + 1)],
+			'lon': lon[j:(i + 1)],
+		}]
+		j = i + 1
+
+	for i, segment in enumerate(segments):
+		if len(segments) > 1:
+			filename = '%s_seg%d.nc' % (output, i)
+		else:
+			filename = '%s.nc' % output
+		ds.write(filename, {
+			'time': segment['time'],
+			'lat': segment['lat'],
+			'lon': segment['lon'],
+			'.': {
+				'time': {
+					'.dims': ['time'],
+					'units': 'days since -4713-11-24 12:00 UTC',
+					'calendar': 'proleptic_gregorian',
+					'standard_name': 'time',
+				},
+				'lat': {
+					'.dims': ['time'],
+					'standard_name': 'latitude',
+				},
+				'lon': {
+					'.dims': ['time'],
+					'standard_name': 'longitude',
+				},
+			}
+		})

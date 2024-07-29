@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+'''Identify graps in a track.
+
+Usage: track_gaps INPUT
+
+Arguments:
+
+  INPUT  Input file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+if __name__ == '__main__':
+	if len(sys.argv) != 2:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	d = ds.read(input_)
+	time = d['time']
+	time_diff = time[1:] - time[:-1]
+	ii = np.where(time_diff > 6/24)[0]
+	print(aq.to_iso(time[ii]), time_diff[ii]*24)

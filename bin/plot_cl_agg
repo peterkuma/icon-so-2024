@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+'''Plot aggregate lidar cloud occurrence from observational and model data output by ALCF.
+
+Usage: plot_cl_agg OBS MODEL... LABEL... OUTPUT
+
+Arguments:
+
+  OBS     Input directory with observational data output by alcf stats (NetCDF).
+  MODEL   Input directory with model data output by alcf stats (NetCDF).
+  LABEL   Model label.
+  OUTPUT  Output plot (PDF).
+'''
+
+import os
+import sys
+import warnings
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import ds_format as ds
+
+COLOR = ['k', '#0084C8', '#009100', '#DC0000']
+LINESTYLE = ['solid', 'dashed', 'dotted', 'dashdot']
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=10)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+if __name__ == '__main__':
+	if len(sys.argv) < 3:
+		sys.stderr.write(sys.modules['__main__'].__doc__)
+		sys.exit(1)
+	n = (len(sys.argv) - 3)//2
+	obs = sys.argv[1]
+	model = sys.argv[2:(2 + n)]
+	label = sys.argv[(2 + n):-1]
+	output = sys.argv[-1]
+
+	if len(model) != len(label):
+		raise RuntimeError('number of models and labels must be the same')
+
+	files = set([x for x in os.listdir(obs) if x.endswith('.nc')])
+	for m in model:
+		files_m = set([x for x in os.listdir(m) if x.endswith('.nc')])
+		ex = files - files_m
+		for f in ex:
+			warnings.warn('source "%s" not present in "%s"' % (f, m))
+		files &= files_m
+	cl_obs = []
+	cl_model = []
+	clt_obs = []
+	clt_model = []
+	rsut_obs = []
+	rsut_model = []
+	zfull = None
+
+	plt.figure(figsize=(5, 5))
+	for i, file_ in enumerate(files):
+		obs_filename = os.path.join(obs, file_)
+		print('<- %s' % obs_filename)
+		d_obs = ds.read(obs_filename)
+		cl_obs += [d_obs['cl']]
+		clt_obs += [d_obs['clt']]
+		rsut_obs += [d_obs['input_rsut_avg']]
+		zfull = d_obs['zfull']
+		for i, m in enumerate(model):
+			model_filename = os.path.join(m, file_)
+			print('<- %s' % model_filename)
+			d_model = ds.read(model_filename)
+			if len(cl_model) <= i: cl_model += [[]]
+			if len(clt_model) <= i: clt_model += [[]]
+			if len(rsut_model) <= i: rsut_model += [[]]
+			cl_model[i] += [d_model['cl'][:,0]]
+			clt_model[i] += [d_model['clt'][0]]
+			rsut_model[i] += [d_model['input_rsut_avg'][0]]
+
+	#days_obs = d_obs['time_total']/(24*60*60)
+	#days_model = d_model['time_total'][0]/(24*60*60)
+	lines = []
+	for j, (cl, clt, rsut) in enumerate(
+		[[cl_obs, clt_obs, rsut_obs]] +
+		[[cl_model[i], clt_model[i], rsut_model[i]] for i in range(n)]
+	):
+		cl_mean = np.mean(cl, axis=0)
+		cl_low = np.percentile(cl, 16, axis=0)
+		cl_high = np.percentile(cl, 84, axis=0)
+		clt_mean = np.mean(clt, axis=0)
+		clt_low = np.percentile(clt, 16, axis=0)
+		clt_high = np.percentile(clt, 84, axis=0)
+		rsut_mean = np.mean(rsut, axis=0)
+		line = plt.gca().plot(cl_mean, zfull*1e-3,
+			color=COLOR[j],
+			linestyle=LINESTYLE[j],
+			lw=1.5,
+			label=('%s; CF = %.0f%% (%.0f–%.0f%%); SW %.0f' % (
+				(label[j-1] if j > 0 else 'OBS'),
+				clt_mean,
+				clt_low,
+				clt_high,
+				rsut_mean,
+			)),
+		)
+		#line = plt.gca().plot(cl_low, zfull*1e-3,
+		#	color=COLOR[j],
+		#	linestyle='dashed',
+		#)
+		#line = plt.gca().plot(cl_high, zfull*1e-3,
+		#	color=COLOR[j],
+		#	linestyle='dotted',
+		#)
+		plt.fill_betweenx(zfull*1e-3, cl_low, cl_high,
+			color=COLOR[j],
+			alpha=0.2
+		)
+	plt.gca().set_xticks(np.arange(0, 60, 10))
+	plt.gca().set_yticks(np.arange(0, 6, 1))
+	plt.xlim(0, 40)
+	plt.ylim(0, 5)
+	plt.legend(handlelength=1)
+	plt.title('Southern Ocean cloud ALC observations (OBS) and models', y=1.03)
+	plt.xlabel('Cloud occurrence (%)')
+	plt.ylabel('Height (km)')
+	print('-> %s' % output)
+	plt.savefig(output, bbox_inches='tight')

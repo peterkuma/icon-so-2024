@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+'''Create a filter for alcf stats based on lower tropospheric stability (LTS) and estimated inverstion strength (EIS).
+
+alcf_filter_lts_eis TYPE STAB THRES INPUT OUTPUT
+
+Arguments:
+
+  TYPE    Quantity to base the filter on. One of: "lts" (LTS) or "eis" (EIS).
+  STAB    Stability. One of: "stable" or "unstable".
+  THRES   Threshold to use.
+  INPUT   Input directory - the output of alcf model (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import os
+import numpy as np
+import ds_format as ds
+from rstool import algorithms 
+
+def calc_lts(p, ta):
+	theta = algorithms.calc_theta(p, ta)
+	theta_700 = np.interp(700e2, p[::-1], theta[::-1])
+	theta_sfc = theta[0]
+	return theta_700 - theta_sfc
+
+#def calc_eis(p, ta, lat=45):
+#	lts = calc_lts(p, ta)
+#	gamma_s = algorithms.calc_gamma_s(p, ta, lat):
+#	gamma_s_850 = np.interp(850e2, p[::-1], gamma_s[::-1])
+#	lclp = algorithms.calc_lclp(p[0], 
+#	return lts - x
+
+def mask_to_intervals(mask, time):
+	ii = np.where(mask)[0]
+	if len(ii) == 0:
+		return []
+	mask2 = np.diff(ii)	> 1
+	jj = np.where(mask2)[0]
+	intervals = []
+	i1 = ii[0]
+	for j in jj:
+		i2 = ii[j]
+		intervals += [[time[i1], time[i2]]]
+		i1 = ii[j+1]
+	intervals += [[time[i1], time[ii[-1]]]]
+	return intervals
+
+if __name__ == '__main__':
+	if len(sys.argv) != 6:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	stab = sys.argv[2]
+	thres = float(sys.argv[3])
+	input_ = sys.argv[4]
+	output = sys.argv[5]
+
+	print('<- %s' % input_)
+	d = ds.readdir(input_, ['time', 'ps', 'tas', 'pfull', 'ta'], merge='time')
+	n = ds.dim(d, 'time')
+	mask = np.full(n, False, bool)
+
+	for i in range(n):
+		p = np.hstack((d['ps'][i], d['pfull'][i,:]))
+		ta = np.hstack((d['tas'][i], d['ta'][i,:]))
+		lts = calc_lts(p, ta)
+		if stab == 'stable':
+			mask[i] = lts >= thres
+		elif stab == 'unstable':
+			mask[i] = lts < thres
+		else:
+			raise ValueError('invalid stability argument')
+
+	print(np.mean(mask))
+	time_bnds = mask_to_intervals(mask, d['time'])
+
+	print('-> %s' % output)
+	ds.write(output, {
+		'time_bnds': time_bnds,
+		'.': {
+			'time_bnds': {
+				'.dims': ['time', 'bnds'],
+				'standard_name': 'time',
+				'long_name': 'time bounds',
+				'units': ds.drivers.netcdf.JD_UNITS,
+				'calendar': ds.drivers.netcdf.JD_CALENDAR,
+			},
+		},
+	})

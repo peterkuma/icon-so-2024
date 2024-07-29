@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+'''Plot lidar cloud occurrence or cloud base height from observational and model data output by ALCF.
+
+Usage: plot_cl VAR INPUT... LABEL... OUTPUT ORDER
+
+Arguments:
+
+  VAR     One of: cl (cloud occurrence) or cbh.
+  INPUT   Input directory with data output by alcf stats (NetCDF). If it contains subdirectories, each is treated as subinput.
+  LABEL   Dataset label. As many labels as inputs must be provided.
+  OUTPUT  Output plot (PDF).
+  ORDER   File containing ordered model file names.
+'''
+
+import os
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import ds_format as ds
+
+COLORS = ['k', '#0084C8', 'green', 'red']
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=7)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+def file_to_name(s):
+	return os.path.basename(s.strip('.nc'))
+
+def read_order(filename):
+	with open(filename) as f:
+		return [x.strip('\n') for x in f.readlines()]
+
+def read_subdir(dirname):
+	files = os.listdir(dirname)
+	dd = []
+	for file in files:
+		if not file.endswith('.nc'):
+			continue
+		filename = os.path.join(dirname, file)
+		print('<- %s' % filename)
+		d = ds.read(filename)
+		d['filename'] = filename
+		d['name'] = file_to_name(filename)
+		dd += [d]
+	return dd
+
+def read_input(dirname):
+	files = os.listdir(dirname)
+	subdirs = [x for x in files if os.path.isdir(os.path.join(dirname, x))]
+	if len(subdirs) > 0:
+		return {
+			subdir: read_subdir(os.path.join(dirname, subdir))
+			for subdir in subdirs
+		}
+	else:
+		return read_subdir(dirname)
+
+def plot_dataset(var, dataset, source, label, color):
+	if type(dataset) is dict:
+		for i, (sub, dd) in enumerate(dataset.items()):
+			d = [d for d in dd if d['name'] == source][0]
+			days = np.mean(d['time_total']/(24*60*60)) if i == 0 else None
+			plot(d, days=days, label=(label if i == 0 else None), lw=0.5, color=color)
+	else:
+		d = [d for d in dataset if d['name'] == source][0]
+		days = np.mean(d['time_total']/(24*60*60))
+		plot(d, days=days, label=label, lw=0.8, color=color)
+
+def plot(d, days=0, label=None, lw=1, color='k'):
+	x = d[var][:,0] if d[var].ndim == 2 else d[var]
+	label_s = None
+	if label is not None:
+		label_s = ('%s %.0f%% %.0fd' % (
+			label,
+			np.mean(d['clt']),
+			days,
+		))
+	plt.gca().plot(x, d['zfull']*1e-3,
+		color=color,
+		label=label_s,
+		lw=lw,
+	)
+
+if __name__ == '__main__':
+	if len(sys.argv) < 5:
+		sys.stderr.write(sys.modules['__main__'].__doc__)
+		sys.exit(1)
+	var = sys.argv[1]
+	m = (len(sys.argv) - 4)//2
+	input_ = sys.argv[2:(2 + m)]
+	labels = sys.argv[(2 + m):-2]
+	output = sys.argv[-2]
+	order = sys.argv[-1]
+
+	if order is not None:
+		source_order = read_order(order)
+
+	datasets = [read_input(in_) for in_ in input_]
+
+	if type(datasets[0]) is dict:
+		sources = [d['name'] for d in datasets[0].values()[0]]
+	else:
+		sources = [d['name'] for d in datasets[0]]
+	sources = sorted(sources, key=lambda x: source_order.index(x))
+
+	n = len(sources)
+	ncols = 6
+	nrows = int(np.ceil(n/6))
+
+	#plt.figure(figsize=(10, 5))
+	#plt.figure(figsize=(10, 8))
+	plt.figure(figsize=(10, 12))
+
+	for i, name in enumerate(sources):
+		plt.subplot(nrows, ncols, i + 1)
+		for j, dataset, label in zip(range(len(input_)), datasets, labels):
+			plot_dataset(var, dataset, name, label, color=COLORS[j])
+		if not (i % ncols) == 0:
+			plt.gca().set_yticklabels([])
+		if not (
+			(i//ncols == nrows - 1) or
+			(i//ncols == nrows - 2) and ((i % ncols) > ((n - 1) % ncols))
+		):
+			plt.gca().set_xticklabels([])
+		plt.text(0.5, 0.95, name.replace('_', '/'),
+			transform=plt.gca().transAxes,
+			va='top',
+			ha='center',
+		)
+		#plt.text(0.5, 0.55, '%.1f days' % days,
+		#	transform=plt.gca().transAxes,
+		#	va='top',
+		#	ha='center',
+		#	fontsize=8,
+		#)
+		#plt.ylim(0, 15)
+		ymax = {
+			'cl': 5,
+			'cbh': 2.5,
+		}[var]
+		yticks = {
+			'cl': [0, 6, 1],
+			'cbh': [0, 3.0, 0.5],
+		}[var]
+		plt.ylim(0, ymax)
+		plt.gca().set_yticks(np.arange(*yticks))
+		#plt.xlim(0, 70)
+		plt.xlim(0, 50)
+		plt.gca().set_xticks(np.arange(0, 60, 10))
+		#plt.gca().set_xticks(np.arange(0, 125, 25))
+		#plt.gca().set_xticks(np.arange(0, 80, 20))
+		#if i == 0:
+		#	plt.legend(bbox_to_anchor=(0.3, 0.83))
+		plt.legend(bbox_to_anchor=(0.5, 0.6), handlelength=1, loc='center')
+
+	plt.suptitle('Southern Ocean cloud ALC comparison',
+		y=0.905,
+		fontweight='bold',
+	)
+
+	plt.text(0.075, 0.5, 'Height (km)',
+		transform=plt.gcf().transFigure,
+		ha='center',
+		rotation=90,
+	)
+
+	xlabel = {
+		'cl': 'Cloud occurrence (%)',
+		'cbh': 'Cloud base height distribution (%)',
+	}[var]
+
+	plt.text(0.5, 0.075, xlabel,
+		transform=plt.gcf().transFigure,
+		ha='center',
+	)
+
+	plt.subplots_adjust(wspace=0.2, hspace=0.2)
+	#plt.subplots_adjust(wspace=0.2, hspace=0.1)
+
+	print('-> %s' % output)
+	plt.savefig(output, bbox_inches='tight')

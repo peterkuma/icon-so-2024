@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+LIMITS = {
+	'cc': [0, 1],
+	'ciwc': [0, np.inf],
+	'clwc': [0, np.inf],
+	'latitude': [-90, 90],
+	'level': [0, 1200],
+	'longitude': [-180, 180],
+	't': [100, 400],
+	'z': [-10000, 1000000],
+	'siconc': [0, 1],
+	'sp': [600e2, 1100e2],
+	'tp': [0, np.inf],
+}
+
+if __name__ == '__main__':
+	if len(sys.argv) != 2:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	filename = sys.argv[1]
+	d = ds.read(filename, jd=True)
+	name = os.path.basename(filename)[:-3]
+	time = aq.from_iso(name)
+	for var, limit in LIMITS.items():
+		x = ds.var(d, var)
+		if x is None:
+			continue
+		if not np.all((x >= limit[0] - 1e-10) & (x <= limit[1] + 1e-10)):
+			print(filename, var)
+			sys.exit(1)
+	dt = d['time'] - time
+	if not np.all((dt >= 0) & (dt <= 1)):
+		print(filename, 'time')
+		sys.exit(1)

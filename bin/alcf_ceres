@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+'''Add CERES radiation variables to ALCF lidar files.
+
+Usage: alcf_ceres INPUT CERES OUTPUT
+
+Arguments:
+
+  INPUT   Input surface file (NetCDF).
+  CERES   Directory with CERES SYN1deg data (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import os
+from glob import glob
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+TEMPLATE = 'CER_SYN1deg-Day_Terra-Aqua-MODIS_Edition4A_*.%d%02d%02d.nc'
+
+VARS_RAD = ['input_rldt', 'input_rlut', 'input_rsdt', 'input_rsut']
+
+VARS = {
+	'Adjusted_AllSky_Flux_Profiles_adj_all_lw_dn': 'input_rldt',
+	'Adjusted_AllSky_Flux_Profiles_adj_all_lw_up': 'input_rlut',
+	'Adjusted_AllSky_Flux_Profiles_adj_all_sw_dn': 'input_rsdt',
+	'Adjusted_AllSky_Flux_Profiles_adj_all_sw_up': 'input_rsut',
+	'longitude': 'lon',
+	'latitude': 'lat',
+}
+
+CACHE = {}
+CACHE_ORDER = []
+CACHE_LEN = 10
+
+META = {
+	'input_rldt': {
+		'.dims': ['time'],
+		'long_name': 'toa incoming longwave radiation',
+		'standard_name': 'toa_incoming_longwave_flux',
+		'units': 'W m-2',
+	},
+	'input_rlut': {
+		'.dims': ['time'],
+		'long_name': 'toa outgoing longwave radiation',
+		'standard_name': 'toa_outgoing_longwave_flux',
+		'units': 'W m-2',
+	},
+	'input_rsdt': {
+		'.dims': ['time'],
+		'long_name': 'toa incident shortwave radiation',
+		'standard_name': 'toa_incoming_shortwave_flux',
+		'units': 'W m-2',
+	},
+	'input_rsut': {
+		'.dims': ['time'],
+		'long_name': 'toa outgoing shortwave radiation',
+		'standard_name': 'toa_outgoing_shortwave_flux',
+		'units': 'W m-2',
+	},	
+}
+
+def read_cer(filename):
+	d = ds.read(filename, list(VARS.keys()))
+	for k1, k2 in VARS.items():
+		ds.rename(d, k1, k2)
+	d['lon'] = d['lon'] % 360
+	order_lon = np.argsort(d['lon'])
+	order_lat = np.argsort(d['lat'])
+	d['lon'] = d['lon'][order_lon]
+	d['lat'] = d['lat'][order_lat]
+	for k in VARS_RAD:
+		d[k] = d[k][0,:,:]
+		d[k] = d[k][order_lat,:]
+		d[k] = d[k][:,order_lon]
+	return d
+
+if __name__ == '__main__':
+	if len(sys.argv) != 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	ceres = sys.argv[2]
+	output = sys.argv[3]
+
+	print('<- %s' % input_)
+	d = ds.read(input_)
+	for t in d['time']:
+		date = aq.to_date(t)	
+		year = date[1]
+		month = date[2]
+		day = date[3]
+		pattern = TEMPLATE % (year, month, day)
+		files = glob(pattern, root_dir=ceres)
+		ts = '%d-%02d-%02d' % (year, month, day)
+		if len(files) == 0:
+			raise SystemError('no CERES input files found for %s' % ts)
+		elif len(files) > 1:
+			raise SystemError('too many potential CERES input files for %s' % ts)
+		file = files[0]
+		filename = os.path.join(ceres, file)
+
+		if filename in CACHE:
+			d_cer = CACHE[filename]
+		else:
+			print('<- %s' % filename)
+			d_cer = read_cer(filename)
+			CACHE[filename] = d_cer
+
+		CACHE_ORDER += [filename]
+		if len(CACHE_ORDER) > CACHE_LEN:
+			k = CACHE_ORDER[0]
+			del CACHE_ORDER[0] 
+			if k not in CACHE_ORDER:
+				del CACHE[k]
+
+		n = len(d['lat'])
+		ii = np.array([
+			np.argmin(np.abs(d_cer['lat'] - d['lat'][i]))
+			for i in range(n)
+		])
+		jj = np.array([
+			np.argmin(np.abs(d_cer['lon'] - d['lon'][i]))
+			for i in range(n)
+		])
+
+		for k in VARS_RAD:
+			d[k] = d_cer[k][ii,jj]
+			d['.'][k] = META[k]
+
+	print('-> %s' % output)
+	ds.write(output, d)

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+'''Convert RSV Aurora Australis surface data from underway to a unified surface file.
+
+Usage: aa_surface INPUT... OUTPUT
+
+Arguments:
+
+  INPUT   Underway data (CSV).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+import logging
+import datetime as dt
+
+if __name__ == '__main__':
+	if len(sys.argv) < 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1:-1]
+	output = sys.argv[-1]
+
+	dd = [ds.read(filename) for filename in input_]
+
+	d = ds.merge(dd, 'i')
+
+	for var in ds.vars(d):
+		ds.rename(d, var, var.lower())
+
+	ds.rename(d, 'latitude_degnorth', 'latitude')
+	ds.rename(d, 'longitude_degeast', 'longitude')
+
+	do = {}
+
+	if 'date_time_utc' in d:
+		do['time'] = aq.from_iso(d['date_time_utc'])
+	elif 'timestamp_gps_utc' in d:
+		t0 = aq.from_iso('1899-12-30')
+		do['time'] = t0 + d['timestamp_gps_utc']
+	elif 'datetimeutc' in d:
+		t_dt = [dt.datetime.strptime(x, '%m/%d/%y %H:%M')
+			for x in d['datetimeutc']]
+		do['time'] = aq.from_datetime(t_dt)
+	else:
+		raise RuntimeError('No time variable present in the input data file')
+
+	do['lat'] = d['latitude']
+	do['lon'] = d['longitude']
+	do['tas'] = (d['temp_air_port_degc'] + d['temp_air_strbrd_degc'])*0.5 + 273.15
+	do['ts'] = d['temp_sea_wtr_degc'] + 273.15
+
+	mask = do['tas'] > 330
+	do['tas'][mask] = np.nan
+
+	mask = do['ts'] > 330
+	do['ts'][mask] = np.nan
+
+	do['.'] = {
+		'time': {
+			'.dims': ['time'],
+			'standard_name': 'time',
+			'units': 'days since -4713-11-24 12:00 UTC',
+			'calendar': 'proleptic_gregorian',
+		},
+		'lat': {
+			'.dims': ['time'],
+			'standard_name': 'latitude',
+			'units': 'degree_north',
+		},
+		'lon': {
+			'.dims': ['time'],
+			'standard_name': 'longitude',
+			'units': 'degree_east',
+		},
+		'tas': {
+			'.dims': ['time'],
+			'standard_name': 'air_temperature',
+			'units': 'K',
+		},
+		'ts': {
+			'.dims': ['time'],
+			'standard_name': 'sea_surface_temperature',
+			'units': 'K',
+		},
+	}
+
+	ds.write(output, do)

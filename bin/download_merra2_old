@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+'''Download MERRA-2 data for voyages.
+
+Usage: download_merra2 INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input track file (NetCDF).
+  OUTPUT  Output directory.
+'''
+
+JOBS = 8
+
+VARS_2D = [
+	'PS',
+	'PHIS',
+]
+
+VARS_3D = [
+	'CLOUD',
+	'H',
+	'PL',
+	'QL',
+	'QI',
+	'T',
+]
+
+TEMPLATE = 'https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NVASM.5.12.4/{year:04d}/{month:02d}/MERRA2_400.inst3_3d_asm_Nv.{year:04d}{month:02d}{day:02d}.nc4'
+
+COOKIE = '411917114151012132196375016818=s%3Aq38PZCRbw78GIvurO0moh8LJhsrvBeux.OHkRfeJvLWbaHko5KA3d60Uc8zfCBvd5nYmTOdpMEy8; 251517904871831611131011912614=s%3Adir1yAQ2kLx78sy2y_pOqhOMjJ8Gwu4-.ZiFV0WvP%2FpN1bEtJTZK%2B2%2FOi5TJollb%2FZ1PrtbHY3nA; nasa_gesdisc_data_archive=wQQPPuN2QQ6Y7EVCHipXoV//t4cKHUKXZxhTAiVFGEc6JojsOBhlOVE/yVxk0Yb/6z+QfUZrKEe5CikuQoijRpL16znyAUA9Gxet/AhjgXcyRLny3DnvDRu7tv29AUdaGpEdHuvPu+DQfoodhwnjP/2NPzY4W94i4WImZPDe08e2uc/andKcdOp5efYT7U24P8g1G/obca4upK04aOXcexyEklG68WptyvZV7f0RPYkB/zMmFz9oqVQ1vCEACq6RbjTwD+VmnuLUBWkWnNOPEzgB/26/it/FV7F5jqtmBQRcxVOtXRodn55Ac3cxV8OJPZ2HolitVsB2+tuUfzXHGD/NGT/bXA0/xdJE8dJgLEd1fowvV2vefj3dStA7SEEM95FucnH+nzkuHLX4zpEIpEHb1K6pgOBU28fsY+Cm3nXSXZs65zZ45DajpvigTw5GEZAHE3RWgy2tN4o94C141pBbcDhHP2NwH9Zm3msoNH+tJd37t8rXne1IliI4ukXzXyKOx5721Cyd9ptyu2yNWMZKBuWTJUpcaWglkdFWaloFGzxKE9fBJWaLjmxUhN4FO6qmTGHvKZQPlghlLze4yXnxv31Tu7tkdvRexKGUuocN1GmjAQDS9ZSD6U+pOY49fb/EJpEnDUD621zswWdvVVOF/Fp0+ODqOIe+Sc/GmyTrMW+z/YKFBB84T5Op7bh9Asq2dAVM7syrk2LB26TrLfszYvJpXrKc8I200PA+/eismx3uvT0XFqVOSUwILsYuQ4T7zI/vxLOXxNvC1G00I4dWes2CdHuGknGZqVv+Wu4AUryWhuLJxx4WYFgYCI7MYl5Sz1oWcbn4wbsCqMUb0CFL3dJlIbVcxqGaMVsx8yN0syVptPGNM8vL6dbDk30ZlO3RdQQ2lu9X/22juNn6lxU/2fglNfmR+EK+RyZWe4tMu6UD62NsHvS8Y6YWm43afeXGr7t2Vsca5qFukczNNw=='
+
+import sys
+import os
+import tempfile
+from multiprocessing.pool import Pool
+import shutil
+import httpio
+import xarray as xr
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+def download(year, month, day, lon1, lon2, lat1, lat2, out):
+	url = TEMPLATE.format(year=year, month=month, day=day)
+	f = httpio.open(url, headers={'Cookie': COOKIE})
+	d = xr.open_dataset(f, decode_times=False)
+	do = {}
+	lon = d['lon'].to_numpy()
+	lat = d['lat'].to_numpy()
+	time = d['time'].to_numpy()
+	mask_lon = (lon >= lon1) & (lon < lon2)
+	mask_lat = (lat >= lat1) & (lat < lat2)
+	lon = lon[mask_lon]
+	lat = lat[mask_lat]
+	for var in VARS_2D:
+		ds.var(do, var, d[var][:,mask_lat,mask_lon].to_numpy())
+		ds.attrs(do, var, d[var].attrs)
+		ds.dims(do, var, ['time', 'lat', 'lon'])
+	for var in VARS_3D:
+		ds.var(do, var, d[var][:,:,mask_lat,mask_lon].to_numpy())
+		ds.attrs(do, var, d[var].attrs)
+		ds.dims(do, var, ['time', 'lev', 'lat', 'lon'])
+	ds.attrs(do, None, d.attrs)
+	for var, x in zip(['time', 'lon', 'lat'], [time, lon, lat]):
+		ds.var(do, var, x)
+		ds.dims(do, var, [var])
+		ds.attrs(do, var, d[var].attrs)
+	ds.write(out, do)
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+
+	try: os.mkdir(os.path.join(output, 'M2I3NVASM'))
+	except FileExistsError: pass
+
+	d = ds.read(input_)
+
+	start = d['time'][0]
+	end = d['time'][-1]
+
+	start = np.floor(start - 0.5) + 0.5
+	end = np.floor(end - 0.5) + 0.5
+
+	items = []
+	for t in np.arange(start, end + 1):
+		mask = (d['time'] >= t) & (d['time'] < t + 1)
+		lon = d['lon'][mask]
+		lat = d['lat'][mask]
+		lon1 = np.floor(np.min(lon))
+		lon2 = np.ceil(np.max(lon))
+		lat1 = np.floor(np.min(lat))
+		lat2 = np.ceil(np.max(lat))
+		items += [[t, lon1, lon2, lat1, lat2]]
+
+	with tempfile.TemporaryDirectory() as tmpdir:
+		def task(args):
+			t, *args2 = args
+			date = aq.to_date(t)
+			year, month, day = date[1:4]
+			name = '%04d-%02d-%02d.nc' % (year, month, day)
+			out = os.path.join(output, 'M2I3NVASM', name)
+			if os.path.exists(out):
+				return
+			tmpfile = os.path.join(tmpdir, 'M2I3NVASM_' + name)
+			#print('download_plev', year, month, day, *args2, tmpfile)
+			#print('shutil.move', tmpfile, out)
+			download(year, month, day, *args2, tmpfile)
+			shutil.move(tmpfile, out)
+
+		with Pool(JOBS) as pool:
+			pool.map(task, items)

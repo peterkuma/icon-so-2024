@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import ds_format as ds
+
+if __name__ == '__main__':
+	dirname = sys.argv[1]
+	map_ = ds.read(os.path.join(os.path.dirname(__file__), 'voyage_map.csv'))
+	names = os.listdir(dirname)
+	old = [x.replace('/', '_') for x in map_['ant']]
+	new = [x.replace('/', '_') for x in map_['ps']]
+	for name in sorted(names):
+		for i, key in enumerate(old):
+			if key in name:
+				new_name = name.replace(key, new[i])
+				old_path = os.path.join(dirname, name)
+				new_path = os.path.join(dirname, new_name)
+				#print(old_path, new_path)
+				os.rename(old_path, new_path)
