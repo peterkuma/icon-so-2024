@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+'''Convert RV Polarstern radiosonde data to NetCDF. This is for the multiple profiles per file format.
+
+Usage: rs_ps_single INPUT OUTPUT
+
+Arguments:
+
+  INPUT    Input file with radiosonde data (TSV).
+  OUTPUT   Output directory (NetCDF).
+'''
+
+import sys
+import os
+import re
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+import copy
+
+def lookup_time(d, filename):
+	i = np.where(d['Filename'] == filename)[0][0]
+	s = d['Citation of child dataset'][i]
+	m = re.match(r'.*(\d\d\d\d-\d\d-\d\d \d\d\:\d\d)h.*', s)
+	iso = m.group(1).replace(' ', 'T')
+	return aq.from_iso(iso)
+
+def process(d):
+	do = {}
+	do['time'] = aq.from_iso(d['Date/Time'])
+	do['z'] = d['h geom [m] (derived from GPS receiver mou...)']
+	do['p'] = d['PPPP [hPa]']*1e2
+	do['hur'] = d['RH [%]']
+	do['ta'] = d['TTT [°C]'] + 273.15
+	do['wdd'] = d['dd [deg]']
+	do['wds'] = d['ff [m/s]']
+	do['lat'] = d['Latitude']
+	do['lon'] = d['Longitude']
+	do['.'] = { k: { '.dims': ['p'] } for k in do.keys() }
+	return do
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+
+	print('<- %s' % input_)
+	d = ds.read(input_)
+
+	events = set(d['Event'])
+	for ev in sorted(events):
+		ii = np.where(d['Event'] == ev)[0]
+		d2 = copy.copy(d)
+		ds.select(d2, {'i': ii})
+		do = process(d2)
+		output_filename = os.path.join(output, '%s.nc' % ev)
+		print('-> %s' % output_filename)
+		ds.write(output_filename, do)

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+'''Rename ICON fields to ERA5-compatible names to be used as input to CyTRACK.
+
+Usage: rename_icon_vars_cytrack INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input file (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+	d = ds.read(input_)
+	ds.rename(d, 'lat', 'latitude')
+	ds.rename(d, 'lon', 'longitude')
+	ds.rename(d, 'ps', 'msl')
+	ds.rename(d, 'uas', 'u10')
+	ds.rename(d, 'vas', 'v10')
+	order = np.argsort(-d['latitude'])
+	d['latitude'] = d['latitude'][order]
+	for var in ['msl', 'u10', 'v10']:
+		d[var] = d[var][:,order,:]
+	ds.write(output, d)

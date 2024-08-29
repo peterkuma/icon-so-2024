@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 '''Convert RSV Aurora Australis surface data from underway to a unified surface file.
 
-Usage: aa_surface INPUT... OUTPUT
+Usage: surf_aa INPUT... OUTPUT
 
 Arguments:
 

@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+'''Extract pseudo-radiosonde profiles from MERRA-2 and ERA5.
+
+Usage: rs_profile TYPE LOC INPUT [LAT] OUTPUT
+
+Arguments:
+
+  TYPE    Model type. One of: "merra2" (MERRA-2), "era5" (ERA5).
+  LOC     Input file with locations (CSV).
+  INPUT   Input directory with model data (NetCDF).
+  LAT     Latitude limit.
+  OUTPUT  Output directory (NetCDF).
+'''
+
+from rstool.algorithms import calc_esat, calc_w, calc_w
+
+VARS_ERA5 = {
+	'plev': {
+		'time': 'time',
+		'longitude': 'lon',
+		'latitude': 'lat',
+		't': 'ta',
+		'z': 'zg',
+		'u': 'ua',
+		'v': 'va',
+		'q': 'hus',
+		'level': 'p',
+	},
+	'surf': {
+		'time': 'time',
+		'longitude': 'lon',
+		'latitude': 'lat',
+		'sst': 'ts',
+		'sp': 'ps',
+		't2m': 'tas',
+		'd2m': 'tds',
+	},
+}
+
+VARS_MERRA2 = {
+	'M2I3NVASM': {
+		'time': 'time',
+		'lon': 'lon',
+		'lat': 'lat',
+		'T': 'ta',
+		'H': 'zg',
+		'U': 'ua',
+		'V': 'va',
+		'RH': 'hur',
+		'PL': 'p',
+		'PS': 'ps',
+	},
+	'M2I1NXASM': {
+		'time': 'time',
+		'lon': 'lon',
+		'lat': 'lat',
+		'TS': 'ts',
+		'T2M': 'tas',
+		'QV2M': 'huss',
+	},
+	'M2T1NXFLX': {
+		'time': 'time',
+		'lon': 'lon',
+		'lat': 'lat',
+		'FRSEAICE': 'sic',
+	},
+}
+
+META = {
+	'p': {
+		'.dims': ['p'],
+		'standard_name': 'air_pressure',
+		'units': 'Pa',
+	},
+	'ps': {
+		'.dims': [],
+		'standard_name': 'surface_air_pressure',
+		'units': 'Pa',
+	},
+	'ta': {
+		'.dims': ['p'],
+		'standard_name': 'air_temperature',
+		'units': 'K',
+	},
+	'hur': {
+		'.dims': ['p'],
+		'standard_name': 'relative_humidity',
+		'units': '%',
+	},
+	'hus': {
+		'.dims': ['p'],
+		'standard_name': 'specific_humidity',
+		'units': '1',
+	},
+	'ua': {
+		'.dims': ['p'],
+		'standard_name': 'eastward_wind',
+		'units': 'm -1',
+	},
+	'va': {
+		'.dims': ['p'],
+		'standard_name': 'northward_wind',
+		'units': 'm -1',
+	},
+	'zg': {
+		'.dims': ['p'],
+		'standard_name': 'geopotential_height',
+		'units': 'm',
+	},
+	'ts': {
+		'.dims': [],
+		'standard_name': 'surface_temperature',
+		'units': 'K',
+	},
+	'time': {
+		'.dims': ['p'],
+		'standard_name': 'time',
+		'units': 'days since -4713-11-24 12:00 UTC',
+		'calendar': 'proleptic_gregorian',
+	},
+	'sic': {
+		'.dims': [],
+		'standard_name': 'sea_ice_area_fraction',
+		'units': '%',
+	},
+	'lat': {
+		'.dims': ['p'],
+		'standard_name': 'latitude',
+		'units': 'degree_north',
+	},
+	'lon': {
+		'.dims': ['p'],
+		'standard_name': 'longitude',
+		'units': 'degree_east',
+	},
+}
+
+import sys
+import os
+from warnings import warn
+import numpy as np
+import aquarius_time as aq
+import ds_format as ds
+
+def read(type_, dirname, t, lon, lat):
+	date = aq.to_date(t)
+	file = '%d-%02d-%02d.nc' % (date[1], date[2], date[3])
+
+	do = {}
+	do['.'] = META
+
+	vars_ = {
+		'merra2': VARS_MERRA2,
+		'era5': VARS_ERA5,
+	}[type_]
+
+	for product in vars_.keys():
+		filename = os.path.join(dirname, product, file)
+		print('<- %s' % filename)
+
+		vars_p = vars_[product]
+		keys = list(vars_p.keys())
+		values = list(vars_p.values())
+		time_var = keys[values.index('time')]
+		lon_var = keys[values.index('lon')]
+		lat_var = keys[values.index('lat')]
+
+		d = ds.read(filename, [time_var, lon_var, lat_var], jd=True)
+		time = d[time_var]
+		lats = d[lat_var]
+		lons = d[lon_var] % 360
+		i = np.argmin(np.abs(time - t))
+		dt = t - time[i]
+		if np.abs(dt) > 3/24:
+			warn('time difference between %s (requested) and %s (found) is %.2f h, and this is greater than 3 h' % (
+				aq.to_iso(t),
+				aq.to_iso(time[i]),
+				dt*24,
+			))
+		j = np.argmin(np.abs(lats - lat))
+		dlat = lats[j] - lat
+		if np.abs(dlat) > 5:
+			warn('latitude difference between %.4f (requested) and %.4f (found) is %.4f degrees, and this is greater than 2 degrees' % (
+				lat, lats[j], np.abs(dlat)
+			))
+
+		k = np.argmin(np.abs(lons - lon))
+		dlon = (lons[k] - lon) % 360
+		if min(dlon, 360 - dlon) > 5:
+			warn('longitude difference between %.4f (requested) and %.4f (found) is %.4f degrees, and this is greater than 2 degrees' % (
+				lon, lons[k], min(dlon, 360 - dlon)
+			))
+		d = ds.read(filename, list(vars_[product].keys()),
+			sel={time_var: i, lat_var: j, lon_var: k}
+		)
+		for var, new_var in vars_[product].items():
+			do[new_var] = d[var]
+
+	if type_ == 'merra2':
+		do['hur'] *= 100	
+		#wsat = calc_wsat(p=do['ps'], ta=do['tas'])
+		#w = calc_w(hus=do['huss'])
+		#hurs = 100*w/wsat
+		#do['hur'][0] = hurs
+		#do['ta'][0] = do['tas']
+		#do['zg'][0] = 2
+		#do['p'][0] = do['ps']
+		#del do['tas'], do['huss']
+	elif type_ == 'era5':
+		do['p'] *= 100
+		do['zg'] /= 9.80665
+
+	for var in ds.vars(do):
+		if do[var].ndim == 1:
+			do[var] = do[var][::-1]
+
+	n = len(do['p'])
+	do['time'] = np.full(n, t)
+	do['lat'] = np.full(n, lat)
+	do['lon'] = np.full(n, lon)
+
+	return do
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (5, 6):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	type_ = sys.argv[1]
+	loc = sys.argv[2]
+	input_ = sys.argv[3]
+	lat = float(sys.argv[4]) if len(sys.argv) == 6 else None
+	output = sys.argv[-1]
+
+	print('<- %s' % loc)
+	d = ds.read(loc)
+	d['time'] = aq.from_iso(d['time'])
+	d['lon'] = d['lon'] % 360
+	n = len(d['time'])
+
+	for i in range(n):
+		if lat is not None and d['lat'][i] > lat:
+			continue
+		try:
+			do = read(type_, input_, d['time'][i], d['lon'][i], d['lat'][i])
+		except (IOError, OSError) as e:
+			warn(str(e))
+			continue
+		filename = os.path.join(output, '%s.nc' % d['name'][i])
+		print('-> %s' % filename)
+		ds.write(filename, do)

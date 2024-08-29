@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+'''Plot identified cyclones on the pressure field.
+
+Usage: plot_cyclones TYPE INPUT1 INPUT2 OUTPUT
+
+Arguments:
+
+  TYPE	Type of model input. One of: "era5" (ERA5) or "icon" (ICON).
+  INPUT1  Input file with the model data (NetCDF).
+  INPUT2  Input file with the output of CyTRACK converted to NetCDF (NetCDF).
+  OUTPUT  Output plot (PDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+import matplotlib as mpl
+import matplotlib.path as mpath
+import matplotlib.pyplot as plt
+import cartopy
+import cartopy.util
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from cartopy.geodesic import Geodesic
+from shapely.geometry import Polygon
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=8)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+def read_era5(filename, time_only=False):
+	vars_ = ['time'] if time_only else None
+	d = ds.read(filename, vars_, jd=True)
+	ds.rename(d, 'latitude', 'lat')
+	ds.rename(d, 'longitude', 'lon')
+	ds.rename(d, 'msl', 'ps')
+	return d
+
+def read_icon(filename, time_only=False):
+	vars_ = ['time'] if time_only else None
+	d = ds.read(filename, vars_, jd=True)
+	return d
+
+if __name__ == '__main__':
+	if len(sys.argv) != 5:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	input1 = sys.argv[2]
+	input2 = sys.argv[3]
+	output = sys.argv[4]
+
+	read = {
+		'era5': read_era5,
+		'icon': read_icon,
+	}[type_]
+
+	d1 = read(input1, time_only=True)
+	d2 = ds.read(input2, jd=True)
+	time = d2['time']
+	dt = np.abs(time - d1['time'])
+	i = np.argmin(dt)
+	t = time[i]
+	if dt[i] > 1/24:
+		raise SystemError('%s: no cyclone data available within 1 hour of observations' % input1)
+
+	d1 = read(input1)
+	mask = time	== t
+
+	proj = ccrs.SouthPolarStereo()
+	ll = ccrs.PlateCarree()
+
+	ax = plt.axes(projection=proj)
+	ax.add_feature(cfeature.LAND, zorder=10, color='k')
+	ax.gridlines(lw=0.3, color='k')
+	psc, lonc = cartopy.util.add_cyclic_point(d1['ps'][0,:,:], coord=d1['lon'])
+	cf = ax.contourf(
+		lonc, d1['lat'], psc/100,
+		levels=np.arange(925, 1080, 5),
+		transform=ll,
+	)
+	theta = np.linspace(0, 2*np.pi, 100)
+	center, radius = [0.5, 0.5], 0.5
+	verts = np.vstack([np.sin(theta), np.cos(theta)]).T
+	circle = mpath.Path(verts * radius + center)
+	ax.set_boundary(circle, transform=ax.transAxes)
+	ax.set_extent([-180, 180, -90, -30], ll)
+	lon = d2['lon'][mask]
+	lat = d2['lat'][mask]
+	radius = d2['radius_ps'][mask]
+	plt.scatter(lon, lat,
+		transform=ll,
+		color='red',
+		s=2,
+	)
+	for j in range(len(lon)):
+		if np.isnan(radius[j]):
+			continue
+		circle_points = Geodesic().circle(lon[j], lat[j], radius[j],
+			n_samples=100,
+		)
+		geom = Polygon(circle_points)
+		ax.add_geometries((geom,),
+			crs=ll.as_geodetic(),
+			facecolor='none',
+			edgecolor='red',
+			linewidth=0.5
+		)
+	cb = plt.colorbar(cf, label='Surface pressure (hPa)')
+	cb.set_ticks(ticks=np.arange(925, 1080, 25))	
+	plt.title(aq.to_iso(t))
+	plt.savefig(output, bbox_inches='tight', dpi=300)

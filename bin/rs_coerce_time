@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+'''Coerce time in radiosonde locations file.
+
+Usage: rs_coerce_time INPUT YEAR
+
+Arguments:
+
+  INPUT   Input file.
+  YEAR    Year to coerce time to.
+'''
+
+import sys
+import aquarius_time as aq
+
+def coerce_time(time, year):
+	date1 = aq.to_date(time)
+	year1 = date1[1][0]
+	start1 = aq.from_date([1, year1, 1, 1, 0, 0, 0])
+	start = aq.from_date([1, year, 1, 1, 0, 0, 0])
+	dt = time - start1
+	return start + dt
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	year = int(sys.argv[2])
+
+	with open(input_) as f:
+		lines = f.readlines()
+		for line in lines:
+			a = line.strip().split(' ')
+			t = aq.from_iso(a[1])
+			tc = coerce_time(t, year)
+			print(' '.join([a[0], aq.to_iso(tc)] + a[2:]))

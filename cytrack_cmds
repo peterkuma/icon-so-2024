@@ -1,0 +1,1 @@
+for y in {2010..2021}; do y1=$((y-1)); y2=$((y+1)); sed "s/{YEAR}/$y/g;s/{BEGIN_YEAR}/$y1/g;s/{END_YEAR}/$y2/g" icon.cfg > icon_new_$y.cfg; done

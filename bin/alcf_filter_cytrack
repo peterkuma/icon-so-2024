@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+'''Create ALCF filter from CyTRACK output.
+
+Usage: alcf_filter_cytrack TYPE INPUT TRACK [YEAR] OUTPUT
+
+Arguments:
+
+  TYPE    One of: "inc" for include filter, "exc" for exclude filter.
+  INPUT   Input file - the output of cytrack2nc (NetCDF).
+  TRACK   Input file with a voyage track (NetCDF).
+  YEAR    Override year.
+  OUTPUT  Output file to be used with the filter_include alcf stats option (NetCDF).
+'''
+
+import sys
+import warnings
+import numpy as np
+import aquarius_time as aq
+import ds_format as ds
+
+def geo_distance(lon1, lat1, lon2, lat2, method='gc'):
+	lon1, lat1, lon2, lat2 = [x/180*np.pi for x in (lon1, lat1, lon2, lat2)]
+	if method == 'gc':
+		x = np.sin(lat1)*np.sin(lat2) + \
+			np.cos(lat1)*np.cos(lat2)*np.cos(lon1 - lon2)
+		return 6371e3*(np.arccos(np.maximum(np.minimum(x, 1), -1)))
+	elif method == 'hs':
+		dlon = lon2 - lon1
+		dlat = lat2 - lat1
+		a = np.sin(dlat/2)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2)**2
+		return 2*6371e3*np.arcsin(np.sqrt(a))
+	else:
+		raise ValueError('Unrecognized method "%s"' % method)
+
+def mask_to_intervals(mask, time):
+	ii = np.where(mask)[0]
+	if len(ii) == 0:
+		return []
+	mask2 = np.diff(ii)	> 1
+	jj = np.where(mask2)[0]
+	intervals = []
+	i1 = ii[0]
+	for j in jj:
+		i2 = ii[j]
+		intervals += [[time[i1], time[i2]]]
+		i1 = ii[j+1]
+	intervals += [[time[i1], time[ii[-1]]]]
+	return intervals
+
+def override_year_in_time(time, year):
+	try: len(time)
+	except:	return override_year_in_time(np.array([time]), year)[0]
+	date = aq.to_date(time)
+	y = date[1]
+	n = len(y)
+	if np.all(y == year):
+		return time
+	ones = np.ones(n, int)
+	zeros = np.zeros(n, int)
+	start_old = aq.from_date([ones, y, ones, ones, zeros, zeros, zeros, zeros])
+	start_new_1 = aq.from_date([1, year, 1, 1, 0, 0, 0])
+	start_new = np.full(n, start_new_1)
+	dt = time - start_old
+	time_new = start_new + dt
+	# Do this again in case the day overflows because of the old year is a leap
+	# year while the new is not, and the time as near the end of the year.
+	return override_year_in_time(time_new, year)
+
+if __name__ == '__main__':
+	if len(sys.argv) not in [5, 6]:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	input_ = sys.argv[2]
+	track = sys.argv[3]
+	year = int(sys.argv[4]) if len(sys.argv) == 6 else None
+	output = sys.argv[-1]
+
+	d = ds.read(input_)
+	d_track = ds.read(track)
+
+	if year is not None:
+		time = override_year_in_time(d_track['time'], year)
+	else:
+		time = d_track['time']
+
+	n = len(time)
+	mask = np.full(n, False, bool)
+
+	for i, t, lon, lat in zip(
+		range(n),
+		time,
+		d_track['lon'],
+		d_track['lat']
+	):
+		dt = np.abs(d['time'] - t)
+		j = np.argmin(dt)
+		if dt[j] > 12/24:
+			warnings.warn('no cyclone data available within 12 hours of a track point %s' % aq.to_iso(t))
+			continue
+		mask1 = d['time'] == d['time'][j]
+		m = np.sum(mask1)
+		lon1 = np.full(m, lon)
+		lat1 = np.full(m, lat)
+		lon2 = d['lon'][mask1]
+		lat2 = d['lat'][mask1]
+		r = d['radius_ps'][mask1]
+		x = geo_distance(lon1, lat1, lon2, lat2)
+		#mask2 = x < 2*r
+		mask2 = x < r
+		if type_ == 'inc':
+			mask[i] = np.sum(mask2) > 0
+		elif type_ == 'exc':
+			mask[i] = np.sum(mask2) == 0
+		else:
+			raise ValueError('invalid type')
+	
+	print(np.mean(mask))
+	if np.sum(mask) > 0:
+		time_bnds = mask_to_intervals(mask, d_track['time'])
+	else:
+		time_bnds = np.zeros((0, 2), dtype=np.float64)
+
+	ds.write(output, {
+		'time_bnds': time_bnds,
+		'.': {
+			'time_bnds': {
+				'.dims': ['time', 'bnds'],
+				'long_name': 'time bounds',
+				'units': ds.drivers.netcdf.JD_UNITS,
+				'calendar': ds.drivers.netcdf.JD_CALENDAR,
+			},
+		},
+	})

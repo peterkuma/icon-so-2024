@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+'''Remove comments from a radiosonde file.
+
+Usage: rs_ps_rm_comments INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input file.
+  OUTPUT  Output file.
+'''
+
+import sys
+import re
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+	with open(input_, 'rb') as f:
+		s = f.read()
+		s2 = re.sub(rb'/\*.*\*/\s*\r?\n?', b'', s, flags=re.DOTALL)
+	with open(output, 'wb') as f:
+		f.write(s2)

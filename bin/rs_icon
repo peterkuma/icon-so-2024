@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+'''Extract pseudo-radiosonde profiles from ICON.
+
+Usage: rs_icon INPUT [YEAR] OUTPUT
+
+Arguments:
+
+  INPUT   Input file with locations (CSV).
+  YEAR    Override year.
+  OUTPUT  Output directory (NetCDF).
+'''
+
+CATALOG = 'https://data.nextgems-h2020.eu/catalog.yaml'
+TIME = 'PT3H'
+ZOOM = 10
+
+VARS = ['ta', 'zg', 'ua', 'va', 'ts', 'hus', 'pfull', 'pres_sfc', 'sic']
+
+VAR_TRANS = {
+	'pfull': 'p',
+	'pres_sfc': 'ps',
+}
+
+META = {
+	'p': {
+		'.dims': ['p'],
+		'standard_name': 'air_pressure',
+		'units': 'Pa',
+	},
+	'ps': {
+		'.dims': [],
+		'standard_name': 'surface_air_pressure',
+		'units': 'Pa',
+	},
+	'ta': {
+		'.dims': ['p'],
+		'standard_name': 'air_temperature',
+		'units': 'K',
+	},
+	'hus': {
+		'.dims': ['p'],
+		'standard_name': 'specific_humidity',
+		'units': '1',
+	},
+	'ua': {
+		'.dims': ['p'],
+		'standard_name': 'eastward_wind',
+		'units': 'm -1',
+	},
+	'va': {
+		'.dims': ['p'],
+		'standard_name': 'northward_wind',
+		'units': 'm -1',
+	},
+	'zg': {
+		'.dims': ['p'],
+		'standard_name': 'geopotential_height',
+		'units': 'm',
+	},
+	'ts': {
+		'.dims': [],
+		'standard_name': 'surface_temperature',
+		'units': 'K',
+	},
+	'time': {
+		'.dims': ['p'],
+		'standard_name': 'time',
+		'units': 'days since -4713-11-24 12:00 UTC',
+		'calendar': 'proleptic_gregorian',
+	},
+	'sic': {
+		'.dims': [],
+		'standard_name': 'sea_ice_area_fraction',
+		'units': '%',
+	},
+}
+
+import sys
+import os
+from warnings import warn
+import pst
+import intake
+import numpy as np
+import healpy
+import aquarius_time as aq
+import ds_format as ds
+
+def override_year_in_time(time, year): # Taken from alcf/cmds/model.py.
+	try: len(time)
+	except:	return override_year_in_time(np.array([time]), year)[0]
+	date = aq.to_date(time)
+	y = date[1]
+	n = len(y)
+	if np.all(y == year):
+		return time
+	ones = np.ones(n, int)
+	zeros = np.zeros(n, int)
+	start_old = aq.from_date([ones, y, ones, ones, zeros, zeros, zeros, zeros])
+	start_new_1 = aq.from_date([1, year, 1, 1, 0, 0, 0])
+	start_new = np.full(n, start_new_1)
+	dt = time - start_old
+	time_new = start_new + dt
+	# Do this again in case the day overflows because of the old year is a leap
+	# year while the new is not, and the time as near the end of the year.
+	return override_year_in_time(time_new, year)
+
+def read(ids, time, t, lon, lat, year=None):
+	t2 = t if year is None else override_year_in_time(t, year)
+
+	i = np.argmin(np.abs(time - t2))
+	j = healpy.ang2pix(ids.crs.healpix_nside, lon, lat,
+		lonlat=True,
+		nest=nest,
+	)
+
+	dt = t2 - time[i]
+	if np.abs(dt) > 3/24:
+		warn('time difference between %s (requested) and %s (found) is %.2f h, and this is greater than 3 h' % (
+			aq.to_iso(t2),
+			aq.to_iso(time[i]),
+			dt*24,
+		))
+
+	d = {}
+	d['.'] = META
+
+	for var in VARS:
+		if var in ['zg']:
+			x = np.array(ids[var].isel(cell=j))
+		else:
+			x = np.array(ids[var].isel(cell=j, time=i))
+		new_var = VAR_TRANS.get(var, var)
+		if x.ndim == 1:
+			x = x[::-1]
+		d[new_var] = x
+
+	n = len(d['p'])
+	d['time'] = np.full(n, t)
+	d['lat'] = np.full(n, lat)
+	d['lon'] = np.full(n, lon)
+
+	return d
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (3, 4):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	input_ = sys.argv[1]
+	year = int(sys.argv[2]) if len(sys.argv) == 4 else None
+	output = sys.argv[-1]
+
+	print('<- %s' % input_)
+	d = ds.read(input_)
+	d['time'] = aq.from_iso(d['time'])
+	n = len(d['time'])
+
+	cat = intake.open_catalog(CATALOG)
+	ids = cat.ICON.ngc3028(time=TIME, zoom=ZOOM).to_dask()
+	nest = ids.crs.healpix_order == 'nest'
+	time = aq.from_iso('1970-01-01') + \
+		(np.array(ids.time).astype('datetime64[s]').astype('int'))/(24*60*60)
+
+	for i in range(n):
+		do = read(ids, time, d['time'][i], d['lon'][i], d['lat'][i], year)
+		filename = os.path.join(output, '%s.nc' % d['name'][i])
+		print('-> %s' % filename)
+		ds.write(filename, do)

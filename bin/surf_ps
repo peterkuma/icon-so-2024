@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+'''Convert RV Polarstern surface data from continuous meteorological observations and thermosalinograph to a unified surface file.
+
+Usage: surf_ps MODE MET [TS] OUTPUT
+
+Arguments:
+
+  MODE    One of: 1 (standard), 2 (custom AWI input files).
+  MET     Continous meteorological observations file (CSV).
+  TS      Thermosalinograph file (CSV).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+MAX_TIME_DIFF = 6/24. # days.
+
+META = {
+	'time': {
+		'.dims': ['time'],
+		'standard_name': 'time',
+		'units': 'days since -4713-11-24 12:00 UTC',
+		'calendar': 'proleptic_gregorian',
+	},
+	'lat': {
+		'.dims': ['time'],
+		'standard_name': 'latitude',
+		'units': 'degree_north',
+	},
+	'lon': {
+		'.dims': ['time'],
+		'standard_name': 'longitude',
+		'units': 'degree_east',
+	},
+	'ps': {
+		'.dims': ['time'],
+		'standard_name': 'surface_pressure',
+		'long_name': 'surface pressure',
+		'units': 'Pa',
+	},
+	'tas': {
+		'.dims': ['time'],
+		'standard_name': 'air_temperature',
+		'long_name': 'near-surface air temperature',
+		'units': 'K',
+	},
+	'ts': {
+		'.dims': ['time'],
+		'standard_name': 'sea_surface_temperature',
+		'units': 'K',
+	},
+	'tds': {
+		'.dims': ['time'],
+		'standard_name': 'dew_point_temperature',
+		'long_name': 'near-surface dew point temperature',
+		'units': 'K',
+	},
+	'hurs': {
+		'.dims': ['time'],
+		'standard_name': 'relative_humidity',
+		'long_name': 'near-surface relative humidity',
+		'units': '%',
+	},
+	'wdds': {
+		'.dims': ['time'],
+		'standard_name': 'wind_from_direction',
+		'units': 'degree',
+	},
+	'wdss': {
+		'.dims': ['time'],
+		'standard_name': 'wind_speed',
+		'units': 'ms-1',
+	},
+}
+
+
+def read1(filename):
+	d = ds.read(filename)
+	d['time'] = aq.from_iso(d['Date/Time'])
+	do = {}
+	do['time'] = d['time']
+	do['lat'] = d['Latitude']
+	do['lon'] = d['Longitude']
+	do['ps'] = d['PPPP [hPa]']*100
+	do['tas'] = d['TTT [°C]'] + 273.15
+	if 'RH [%]' in d:
+		do['hurs'] = d['RH [%]']
+	if 'TdTdTd [°C]' in d:
+		do['tds'] = d['TdTdTd [°C]'] + 273.15
+	do['wdds'] = d['dd [deg]']
+	do['wdss'] = d['ff [m/s]']
+	if do['tas'].dtype != np.float64:
+		do['tas'][do['tas'] == ''] = np.nan
+		do['tas'] = do['tas'].astype(np.float64)
+	return do
+
+def read2(filename):
+	d = ds.read(filename)
+	for k in ['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second']:
+		d[k] = d[k].astype(object)
+		d[k][d[k] == -1] = None
+	n = len(d['Year'])
+	do = {}
+	do['time'] = aq.from_date([
+		np.ones(n),
+		d['Year'], d['Month'], d['Day'],
+		d['Hour'], d['Minute'], d['Second']
+	])
+	do['lat'] = d['Latitude [°]'].astype(np.float64)
+	do['lon'] = d['Longitude [°]'].astype(np.float64)
+	do['ps'] = d['Pressure [hPa]']*100
+	do['tas'] = d['AirTemperature [°C]'] + 273.15
+	do['hurs'] = d['RelativeHumidity [%]'].astype(np.float64)
+	do['tds'] = d['DewPointTemperature [°C]'] + 273.15
+	do['wdds'] = d['TrueWindDirection [°]'].astype(np.float64)
+	do['wdss'] = d['TrueWindSpeed [m/s]'].astype(np.float64)
+	for k, vv in zip(
+		['lat', 'lon', 'ps', 'tas', 'hurs', 'tds', 'wdds', 'wdss'],
+		[999.9999, 9999.9999, 999990.000000, 999.9, 999, 999.9, 999, [99.9, 999.9]],
+	):
+		if type(vv) is not list:
+			vv = [vv]
+		for v in vv:
+			do[k][np.abs(do[k] - v) <= 1e-5] = np.nan
+	return do
+
+def read_ts(filename):
+	d = ds.read(filename)
+	d['time'] = aq.from_iso(d['Date/Time'])
+	d['ts'] = d['Temp [°C]'] + 273.15
+	return d
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (4, 5):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	mode = sys.argv[1]
+	met = sys.argv[2]
+	ts = sys.argv[3] if len(sys.argv) == 5 else None
+	output = sys.argv[-1]
+
+	read = {
+		'1': read1,
+		'2': read2,
+	}[mode]
+
+	d = read(met)
+	d_ts = read_ts(ts) if ts is not None else None
+
+	n = len(d['time'])
+
+	if d_ts is not None:
+		d['ts'] = np.full(n, np.nan, np.float64)
+		for i, t in enumerate(d['time']):
+			j = np.argmin(np.abs(d_ts['time'] - t))
+			t2 = d_ts['time'][j]
+			dt = t2 - t
+			if np.abs(dt) <= MAX_TIME_DIFF:
+				d['ts'][i] = np.interp(
+					t, d_ts['time'], d_ts['ts'],
+					left=np.nan,
+					right=np.nan,
+				)
+
+	d['.'] = META
+	ds.write(output, d)

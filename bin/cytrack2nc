@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+'''Convert CyTRACT text files to NetCDF.
+
+Usage: cytrack2nc INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input file - the output run_CyTRACK.py.
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+META = {
+	'time': {
+		'standard_name': 'time',
+		'long_name': 'time',
+		'units': ds.drivers.netcdf.JD_UNITS,
+		'calendar': ds.drivers.netcdf.JD_CALENDAR,
+	},
+	'lat': {
+		'standard_name': 'latitude',
+		'long_name': 'latitude',
+		'units': 'degrees_north',
+	},
+	'lon': {
+		'standard_name': 'longitude',
+		'long_name': 'longitude',
+		'units': 'degrees_east',
+	},
+	'ps': {
+		'standard_name': 'near-surface pressure',
+		'long_name': 'cyclone center near-surface pressure',
+		'units': 'Pa',
+	},
+	'sfcWind': {
+		'standard_name': 'wind_speed',
+		'long_name': 'cyclone center near-surface wind speed',
+		'units': 'm s-1',
+	},
+	'radius_sfcWind': {
+		'long_name': 'cyclone radius determined from near-surface wind',
+		'units': 'm',
+	},
+	'ps_outer': {
+		'standard_name': 'near-surface pressure',
+		'long_name': 'near-surface pressure at the outermost closed isobar',
+		'units': 'Pa',
+	},
+	'radius_ps': {
+		'long_name': 'cyclone radius determined from near-surface pressure',
+		'units': 'm',
+	},
+	'core_class': {
+		'long_name': 'cyclone core class',
+	},
+	'vtu': {
+		'long_name': 'VTU',
+	},
+	'vtl': {
+		'long_name': 'VTL',
+	},
+	'b': {
+		'long_name': 'B',
+	},
+}
+
+def read_float(s):
+	x = float(s)
+	if x == -99999:
+		x = np.nan
+	return x
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+
+	dd = []
+	with open(input_, 'rb') as f:
+		for line in f.readlines():
+			a = line.strip().split(b',')
+			a = [x.strip() for x in a]
+			if len(a) == 3:
+				number = int(a[1])
+			else:
+				date = a[0]
+				y = int(date[0:4])
+				m = int(date[4:6])
+				d = int(date[6:8])
+				h = int(a[1])
+				time = aq.from_date([1, y, m, d, h])
+				lat = read_float(a[2])
+				lon = read_float(a[3])
+				ps = read_float(a[4])
+				sfcWind = read_float(a[5]) 
+				radius_sfcWind = read_float(a[6])
+				ps_outer = read_float(a[7])
+				radius_ps = read_float(a[8])
+				core_class = None if a[9] == b'UDCC' else a[9]
+				vtu = -read_float(a[10])
+				vtl = -read_float(a[11])
+				b = read_float(a[12])
+				d = {
+					'number': number,
+					'time': time,
+					'lat': lat,
+					'lon': lon,
+					'ps': ps*1e2,
+					'sfcWind': sfcWind,
+					'radius_sfcWind': radius_sfcWind*1e3,
+					'ps_outer': ps_outer*1e2,
+					'radius_ps': radius_ps*1e3,
+					#'core_class': core_class,
+					'vtu': vtu,
+					'vtl': vtl,
+					'b': b,
+					'.': META,
+				}
+				dd += [d]
+	do = ds.merge(dd, 'record')	
+	ds.write(output, do)

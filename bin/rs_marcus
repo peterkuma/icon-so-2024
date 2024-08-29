@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+'''Convert MARCUS radiosonde data to rstool pts.
+
+Usage: rs_marcus INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input file (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import ds_format as ds
+
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+	d = ds.read(input_, jd=True)
+	do = {
+		'hur': d['rh'],
+		'lat': d['lat'],
+		'lon': d['lon'],
+		'p': d['pres']*100,
+		'ta': d['tdry'] + 273.15,
+		'time': d['time'],
+		'z': d['alt'],
+		'.': {
+			'hur': {
+				'.dims': ['time'],
+				'standard_name': 'relative_humidity',
+				'long_name': 'relative_humidity',
+				'units': '%',
+			},
+			'lat': {
+				'.dims': ['time'],
+				'standard_name': 'latitude',
+				'long_name': 'latitude',
+				'units': 'degrees_north',
+			},
+			'lon': {
+				'.dims': ['time'],
+				'standard_name': 'longitude',
+				'long_name': 'longitude',
+				'units': 'degrees_east',
+			},
+			'p': {
+				'.dims': ['time'],
+				'standard_name': 'air_pressure',
+				'long_name': 'air pressure',
+				'units': 'Pa',
+			},
+			'ta': {
+				'.dims': ['time'],
+				'standard_name': 'air_temperature',
+				'long_name': 'air temperature',
+				'units': 'K',
+			},
+			'time': {
+				'.dims': ['time'],
+				'standard_name': 'time',
+				'long_name': 'time',
+				'units': 'days since -4713-11-24 12:00 UTC',
+				'calendar': 'proleptic_gregorian',
+			},
+			'z': {
+				'.dims': ['time'],
+				'standard_name': 'height_above_reference_ellipsoid',
+				'long_name': 'altitude',
+				'units': 'm',
+			},
+		},
+	}
+	ds.write(output, do)

@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import numpy as np
+import aquarius_time as aq
+
+if __name__ == '__main__':
+	dirname = sys.argv[1]
+	files = [x[:-3] for x in sorted(os.listdir(dirname))]
+	start = files[0]
+	end = files[-1]
+	t1 = aq.from_iso(start)
+	t2 = aq.from_iso(end)
+	for t in np.arange(t1, t2 + 1):
+		s = aq.to_iso(t).replace(':', '')
+		if s not in files:
+			print(s)

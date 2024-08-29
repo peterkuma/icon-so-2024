@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+'''Convert weather observations to a standard format.
+
+weather_obs TYPE INPUT OUTPUT
+
+Arguments:
+
+  TYPE    One of: ps (RV Polarstern).
+  INPUT   Input file (TSV).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+
+if __name__ == '__main__':
+	if len(sys.argv) != 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	type_ = sys.argv[1]
+	input_ = sys.argv[2]
+	output = sys.argv[3]
+	d = ds.read(input_, jd=True)
+
+	if type_ == 'ps':
+		time = d['Date/Time']
+		weather = d['ww [code]']
+	else:
+		raise ValueError('Invalid type "%s"' % type_)
+
+	ds.write(output, {
+		'time': time,
+		'weather': weather,
+		'.': {
+			'time': {
+				'.dims': ['time'],
+				'long_name': 'time',
+				'units': ds.drivers.netcdf.JD_UNITS,
+				'calendar': ds.drivers.netcdf.JD_CALENDAR,
+			},
+			'weather': {
+				'.dims': ['time'],
+				'comment': '0: clear, 1: rain, 2: snow, 3: fog',
+			}
+		},
+	})

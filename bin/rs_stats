@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+'''Calculate radiosonde statistics from a set of radiosonde launches.
+
+Usage: rs_stats INPUT [FILTER...] LAT1 LAT2 OUTPUT
+
+Arguments:
+
+  INPUT   Input directory - the output of rstool (NetCDF).
+  FILTER  ALCF include filter (NetCDF).
+  LAT1    Start latitude.
+  LAT2    End latitude.
+  OUTPUT  Output file (NetCDF).
+'''
+
+META = {
+	'thetav_avg': {
+		'.dims': ['zg'],
+		'standard_name': 'air_potential_temperature',
+		'units': 'K',
+	},
+	'thetav_low': {
+		'.dims': ['zg'],
+		'standard_name': 'air_potential_temperature',
+		'units': 'K',
+	},
+	'thetav_high': {
+		'.dims': ['zg'],
+		'standard_name': 'air_potential_temperature',
+		'units': 'K',
+	},
+	'hur_avg': {
+		'.dims': ['zg'],
+		'standard_name': 'relative_humidity',
+		'units': '%',
+	},
+	'hur_low': {
+		'.dims': ['zg'],
+		'standard_name': 'relative_humidity',
+		'units': '%',
+	},
+	'hur_high': {
+		'.dims': ['zg'],
+		'standard_name': 'relative_humidity',
+		'units': '%',
+	},
+	'zg': {
+		'.dims': ['zg'],
+		'standard_name': 'geopotential_height',
+		'units': 'm',
+	},
+	'lcl_hist': {
+		'.dims': ['lcl'],
+		'long_name': 'lifting condensation level geopotential height histogram',
+	},
+	'lcl': {
+		'.dims': ['lcl'],
+		'standard_name': 'geopotential_height',
+		'long_name': 'lifting condensation level geopotential height',
+		'units': 'm',
+	},
+	#'zg_ll_hist': {
+	#	'.dims': ['zg_ll'],
+	#	'long_name': 'lifting level geopotential height histogram',
+	#},
+	#'zg_ll': {
+	#	'.dims': ['zg_ll'],
+	#	'standard_name': 'geopotential_height',
+	#	'long_name': 'lifting level geopotential height',
+	#	'units': 'm',
+	#},
+}
+
+import sys
+import os
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+
+if __name__ == '__main__':
+	if len(sys.argv) < 5:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	filter_ = sys.argv[2:-3]
+	lat1 = float(sys.argv[-3])
+	lat2 = float(sys.argv[-2])
+	output = sys.argv[-1]
+
+	filters = []
+	for filename in filter_:
+		print('<- %s' % filename)
+		d = ds.read(filename)
+		filters += [d['time_bnds']]
+	
+	if len(filters) > 0:
+		time_bnds = np.concatenate(filters)
+	else:
+		time_bnds = []
+
+	dd = []
+	n = 0
+	m = 0 
+	for file in sorted(os.listdir(input_)):
+		n += 1
+		if not file.endswith('.nc'):
+			continue
+		filename = os.path.join(input_, file)
+		print('<- %s' % filename)
+		d = ds.read(filename)
+
+		lat = d['launch_lat'] if 'launch_lat' in d else d['lat'][0]
+		time = d['launch_time'] if 'launch_time' in d else d['time'][0]
+
+		if not (lat >= lat1 and lat < lat2):
+			#print('%s: skipping (latitude)' % filename)
+			m += 1
+			continue
+
+		if len(filters) > 0:
+			for t1, t2 in time_bnds:
+				if time >= t1 and time < t2:
+					break
+			else:
+				#print('%s: skipping (filter)' % filename)
+				m += 1
+				continue
+
+		mask = (
+			~np.ma.getmaskarray(d['thetav']) & ~np.isnan(d['thetav']) &
+			~np.ma.getmaskarray(d['zg']) & ~np.isnan(d['zg'])
+		)
+		ds.select(d, {'p': mask})
+		d['filename'] = filename
+		if len(d['p']) == 0:
+			continue
+		#if 'ts' not in d:
+		#	print('%s: surface parameters not present, skipping' % filename,
+		#		file=sys.stderr)
+		#	continue
+		dd += [d]
+	
+	print('%d%% skipped' % (m/n*100))
+	if m == n:
+		sys.exit(0)
+
+	do = {}
+
+	zg = np.arange(0, 10e3, 10)
+	lcl = []
+	lcl_bins = np.arange(0, 5000 + 100, 100)
+	#zg_ll = []
+	#zg_ll_bins = np.arange(0, 5000 + 100, 100)
+	thetav = []
+	hur = []
+	for d in dd:
+		mask = ~(np.ma.getmaskarray(d['zg']) | np.ma.getmaskarray(d['thetav']))
+		thetav += [np.interp(zg, d['zg'][mask], d['thetav'][mask],
+			left=np.nan, right=np.nan)]
+		mask = ~(np.ma.getmaskarray(d['zg']) | np.ma.getmaskarray(d['hur']))
+		hur += [np.interp(zg, d['zg'][mask], d['hur'][mask],
+			left=np.nan, right=np.nan)]
+		if 'lcl' in d:
+			lcl += [d['lcl']]
+		#if 'zg_ll' in d and d['zg_ll'] is not None:
+		#	zg_ll += [d['zg_ll']]
+
+	thetav_avg = np.nanmean(thetav, axis=0)
+	thetav_low = np.nanpercentile(thetav, 16, axis=0)
+	thetav_high = np.nanpercentile(thetav, 84, axis=0)
+	hur_v_avg = np.nanmean(hur, axis=0)
+	hur_v_low = np.nanpercentile(hur, 16, axis=0)
+	hur_v_high = np.nanpercentile(hur, 84, axis=0)
+	lcl_hist = np.histogram(lcl, lcl_bins)[0]
+	#try:
+	#	zg_ll_hist = np.histogram(zg_ll, zg_ll_bins)[0]
+	#except Exception as e:
+	#	print(input_, zg_ll, e)
+
+	do = {
+		'zg': zg,
+		'thetav_avg': thetav_avg,
+		'thetav_low': thetav_low,
+		'thetav_high': thetav_high,
+		'hur_avg': hur_v_avg,
+		'hur_low': hur_v_low,
+		'hur_high': hur_v_high,
+		'lcl_hist': lcl_hist,
+		'lcl': 0.5*(lcl_bins[1:] + lcl_bins[:-1]),
+		#'zg_ll_hist': zg_ll_hist,
+		#'zg_ll': 0.5*(zg_ll_bins[1:] + zg_ll_bins[:-1]),
+		'.': META,
+	}
+
+	print('-> %s' % output)
+	ds.write(output, do)

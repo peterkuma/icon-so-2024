@@ -1,0 +1,421 @@
+#!/usr/bin/env python3
+'''Plot aggregate potential temperature (all models).
+
+Usage: plot_theta_agg_all [OPTIONS] OBS MODEL LAT1 LAT2 OUTPUT TITLE
+
+Arguments:
+
+  INPUT1   Input directory of observations - the output of rstool (NetCDF).
+  INPUT2   Input directory of model - the output of rstool (NetCDF).
+  LAT1     Start latitude (degree).
+  LAT2     End latitude (degree).
+  OUTPUT   Output file (PDF).
+  TITLE    Plot title.
+
+Options:
+
+  sea_ice: <value>  "true" to plot only sea ice profiles, "false" to plot only no sea ice profiles, or "none" to plot all profiles. Default: "none".
+'''
+
+import sys
+import os
+import pst
+import datetime as dt
+import numpy as np
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+from matplotlib.gridspec import GridSpec
+import matplotlib.lines as mlines
+import ds_format as ds
+import aquarius_time as aq
+import datetime as dt
+
+COLORS = ['#0084C8', '#DC0000']
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=8)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+#def interp(xout, x, y):
+#	np.arange(
+#	xint = np.interp(zg, x)
+#	return
+
+def calc_stats(dd):
+	zg = np.arange(0, 10e3, 10)
+	theta = []
+	for d in dd:
+		mask = ~(np.ma.getmaskarray(d['zg']) | np.ma.getmaskarray(d['theta']))
+		theta += [np.interp(zg, d['zg'][mask], d['theta'][mask],
+			left=np.nan, right=np.nan)]
+	theta_m = np.nanmean(theta, axis=0)
+	theta_m = np.ma.masked_invalid(theta_m, np.nan)
+	theta_low = np.nanpercentile(theta, 16, axis=0)
+	theta_low = np.ma.masked_invalid(theta_low, np.nan)
+	theta_high = np.nanpercentile(theta, 84, axis=0)
+	theta_high = np.ma.masked_invalid(theta_high, np.nan)
+	theta_low2 = np.nanpercentile(theta, 2.5, axis=0)
+	theta_low2 = np.ma.masked_invalid(theta_low2, np.nan)
+	theta_high2 = np.nanpercentile(theta, 97.5, axis=0)
+	theta_high2 = np.ma.masked_invalid(theta_high2, np.nan)
+	sic = np.nanmean([d['sic'] > 0.15 for d in dd])
+	return {
+		'zg': zg,
+		'theta': theta_m,
+		'theta_low': theta_low,
+		'theta_high': theta_high,
+		'theta_low2': theta_low2,
+		'theta_high2': theta_high2,
+		'ts': np.mean([d['ts'] for d in dd]),
+		'zg_lcl': np.median([d['zg_lcl'] for d in dd]),
+		#'zg_sll': np.median([d['zg_sll'] for d in dd]),
+		'sic': sic,
+	}
+
+def plot_median_lcl(lcl, linestyle='solid', alpha=1, text=True):
+	plt.axhline(y=lcl*1e-3, color='black', lw=0.8, linestyle=linestyle,
+		alpha=alpha)
+	if text:
+		plt.text(24.5, lcl*1e-3, 'Median LCL',
+			fontsize=8,
+			weight='bold',
+			verticalalignment='bottom',
+			horizontalalignment='right',
+		)
+
+def plot_median_sll(sll, linestyle='solid', alpha=1, text=True):
+	plt.axhline(y=lcl*1e-3, color='black', lw=0.8, linestyle=linestyle,
+		alpha=alpha)
+	if text:
+		plt.text(24.5, lcl*1e-3, 'Median SLL',
+			fontsize=8,
+			weight='bold',
+			verticalalignment='bottom',
+			horizontalalignment='right',
+		)
+
+def plot_sll(ts, p, theta):
+	p0 = p[0]
+	p1 = np.interp(ts, theta, p)
+	#plt.plot([ts - 273.15, ts - 273.15], [-p0*1e-2, -p1*1e-2], lw=1)
+	plt.axhline(y=-p1*1e-2, color='black', lw=0.8, linestyle='dashed')
+	plt.scatter(ts - 273.15, -p0*1e-2, s=5,
+		clip_on=False,
+		zorder=100,
+		color='k'
+	)
+	plt.text(ts - 273.15, -p0*1e-2, 'SST',
+		fontsize=8,
+		weight='bold',
+		horizontalalignment='center',
+		verticalalignment='top',
+	)
+	plt.text(32, -p1*1e-2, 'SLL',
+		fontsize=8,
+		weight='bold',
+		verticalalignment='bottom',
+	)
+
+def plot_par(ta_par_s, z, ta, label='PAR', x=0, linestyle='solid', ylim=None):
+	n = len(z)
+	for i in range(n):
+		parz = z[i]
+		if ta_par_s[i] < ta[i]:
+			break
+	if ylim is not None and parz*1e-3 > ylim[1]:
+		return
+	plt.axhline(y=parz*1e-3, color='black', lw=0.8, linestyle=linestyle)
+	if label is not None:
+		plt.text(x, parz*1e-3, label,
+			fontsize=8,
+			weight='bold',
+			verticalalignment='bottom',
+			horizontalalignment='right',
+		)
+
+def plot(d_stats, dd, title=''):
+	plt.figure(figsize=(6,5))
+	gs = GridSpec(1, 2,
+		width_ratios=[0.8, 0.2],
+		wspace=0,
+	)
+
+	plt.subplot(gs[0])
+	xlim = [-40, 40]
+	ylim = [0, 5]
+	line1_1 = None
+	line1_2 = None
+	for d in dd:
+		p0 = d['p'][0]
+		markevery = max(1, int(len(d['p'])/20))
+		color = COLORS[0] if d['sic'] > 0.15 else COLORS[1]
+		line, = plt.plot(d['theta'] - 273.15, d['zg']*1e-3,
+			lw=0.9,
+			color=color,
+			alpha=0.3,
+		)
+		if d['sic'] > 0.15:
+			line1_1 = line
+		else:
+			line1_2 = line
+	line2, = plt.plot(d_stats['theta'] - 273.15, d_stats['zg']*1e-3,
+		lw=1,
+		color='k',
+	)
+	#plt.fill_betweenx(
+	#	d_stats['zg']*1e-3,
+	#	d_stats['theta_low2'] - 273.15,
+	#	d_stats['theta_high2'] - 273.15,
+	#	color='#0084C8',
+	#	alpha=0.1,
+	#)
+	#plt.fill_betweenx(
+	#	d_stats['zg']*1e-3,
+	#	d_stats['theta_low'] - 273.15,
+	#	d_stats['theta_high'] - 273.15,
+	#	color='k',
+	#	alpha=0.2,
+	#)
+	line3, = plt.plot(d_stats['theta_low'] - 273.15, d_stats['zg']*1e-3,
+		lw=1,
+		color='k',
+		linestyle='dashed',
+	)
+	plt.plot(d_stats['theta_high'] - 273.15, d_stats['zg']*1e-3,
+		lw=1,
+		color='k',
+		linestyle='dashed',
+	)
+	#line4, = plt.plot(d_stats['theta_low2'] - 273.15, d_stats['zg']*1e-3,
+	#	lw=1.2,
+	#	color='#0084C8',
+	#	linestyle='dotted',
+	#)
+	#plt.plot(d_stats['theta_high2'] - 273.15, d_stats['zg']*1e-3,
+	#	lw=1.2,
+	#	color='#0084C8',
+	#	linestyle='dotted',
+	#)
+
+	for d in dd:
+		point1 = plt.scatter(d['ts'] - 273.15, 0,
+			c='none',
+			edgecolor='k',
+			alpha=0.2,
+			linewidths=0.9,
+		)
+		point1.set_clip_on(False)
+	point2 = plt.scatter(d_stats['ts'] - 273.15, 0,
+		c='none',
+		edgecolor='k',
+		linewidths=1.2,
+	)
+	point2.set_clip_on(False)
+
+	#if 'ua' in d and 'va' in d:
+	#	plt.plot(d['ua'], d['zg']*1e-3,
+	#		lw=0.9,
+	#		color='#ff6600',
+	#		marker='>',
+	#		markevery=markevery,
+	#		markersize=2.5
+	#	)
+	#	plt.plot(d['va'], d['zg']*1e-3,
+	#		lw=0.9,
+	#		color='#dc0000',
+	#		marker='^',
+	#		markevery=markevery,
+	#		markersize=2.5
+	#	)
+	#zg2 = np.interp(-d['p2'], -d['p'], d['zg'])
+	#plt.plot(-1/d['bvf']/10, zg2*1e-3,
+	#	lw=0.9,
+	#	color='#ba00ff',
+	#	marker='s',
+	#	markersize=2.5
+	#)
+	#if 'e' in d and 'es' in d:
+	#	plt.plot(d['e']*1e-2, d['zg']*1e-3,
+	#		lw=0.9,
+	#		color='#9ade00',
+	#		marker='D',
+	#		markevery=markevery,
+	#		markersize=2.5
+	#	)
+	#	plt.plot(d['es']*1e-2, d['zg']*1e-3,
+	#		lw=0.9,
+	#		color='#009100',
+	#		marker='x',
+	#		markevery=markevery,
+	#		markersize=2.5
+	#	)
+	#if 'hur' in d:
+	#	plt.plot(d['hur']*1e-1, d['zg']*1e-3,
+	#		lw=0.9,
+	#		color='#0000e2',
+	#		marker='o',
+	#		markevery=markevery,
+	#		markersize=2.5
+	#	)
+	#for d in dd:
+	#	if 'lcl' in d or 'zg_lcl' in d:
+	#		key = 'lcl' if 'lcl' in d else 'zg_lcl'
+	#		plot_lcl(d[key], linestyle='dashed', alpha=0.2)
+	if 'zg_lcl' in d_stats:
+		plot_median_lcl(d_stats['zg_lcl'], linestyle='dashed')
+	#if 'zg_sll' in d_stats:
+	#	plot_median_sll(d_stats['zg_sll'], linestyle='dotted')
+	#if 'ta_surf_par' in d:
+	#	plot_par(d['ta_surf_par'], d['zg'], d['ta'],
+	#		label='SLL',
+	#		x=22,
+	#		linestyle='dashdot',
+	#		ylim=ylim,
+	#	)
+	#if 'ta_surf_par_s' in d:
+	#	plot_par(d['ta_surf_par_s'], d['zg'], d['ta'],
+	#		label='SLL$_s$',
+	#		x=19,
+	#		linestyle='dotted',
+	#		ylim=ylim,
+	#	)
+	plt.axvline(10, lw=0.5, alpha=0.3, color='k')
+	plt.axvline(x=0, color='black', lw=0.3, alpha=0.3)
+	plt.xlim(xlim)
+	plt.ylim(ylim)
+	plt.xlabel('Potential temperature (°C)')
+	plt.suptitle(title, y=0.93, fontsize=14, weight='bold')
+	plt.ylabel('Height (km)')
+	lines = []
+	labels = []
+	if line1_1 is not None:
+		lines += [line1_1]
+		labels += ['Individual profile (sea ice)']
+	if line1_2 is not None:
+		lines += [line1_2]
+		labels += ['Individual profile (no sea ice)']
+	plt.legend(
+		lines + [line2, line3, point1, point2],
+		labels + [
+			'Mean profile',
+			'16th and 84th percentile',
+			#'2.5th and 97.5th percentile',
+			'Individual SST',
+			'Mean SST',
+		],
+		loc='upper left',
+	)
+	import matplotlib.font_manager as fm
+	plt.text(0.015, 0.67, 'Sea ice %.0f %%' % (d_stats['sic']*100),
+		transform=plt.gca().transAxes,
+		fontsize=9,
+	)
+#			['Individual profile'] + \
+#			(['Zonal wind (m.s$^{-1}$)', 'Meridional wind (m.s$^{-1}$)'] if 'ua' in d and 'va' in d else []) + \
+#			['BVF (-1$\\times$10$^{1}$ s)'] + \
+#			(['Vapour pressure (hPa)', 'Saturation vapour pressure (hPa)'] if 'e' in d and 'es' in d else []) + \
+#			([u'Relative humidity (%/10)'] if 'hur' in d else []),
+#		fontsize=9,
+#		loc='upper right',
+#		framealpha=1,
+#		edgecolor='none',
+#		fancybox=False,
+#	)
+#	frame = legend.get_frame()
+#	frame.set_facecolor('#f5f5f5')
+	#handles, labels = plt.gca().get_legend_handles_labels()
+	#handles.append([
+	#	mlines.Line2D([], [], linestyle='dashed'),
+	#	mlines.Line2D([], [], linestyle='dotted')
+	#])
+	#labels.append([
+	#	'SST lifting level (SLL)',
+	#	'Lifting condensation level (LCL)',
+	#])
+	#plt.legend(handles, labels)
+
+
+	plt.subplot(gs[1])
+	bins = np.arange(xlim[0], xlim[1], 100e-3)
+	plt.hist([d['zg_lcl']*1e-3 for d in dd],
+		orientation='horizontal',
+		bins=bins,
+		color='k',
+	)
+	plt.ylim(ylim)
+	plt.gca().set_yticks([])
+	plt.gca().set_xticks([])
+	plt.text(0.5, 0.98, 'LCL\nhistogram',
+		transform=plt.gca().transAxes,
+		va='top',
+		ha='center',
+	)
+
+if __name__ == '__main__':
+	args, opts = pst.decode_argv(sys.argv, as_unicode=True)
+	if len(args) != 7:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	obs = args[1]
+	model = args[2]
+	lat1 = args[3]
+	lat2 = args[4]
+	output = args[5]
+	title = args[6]
+	sea_ice = opts.get('sea_ice', None)
+
+	dd = []
+	for file in sorted(os.listdir(obs)):
+		if not file.endswith('.nc'):
+			continue
+		filename_obs = os.path.join(obs, file)
+		filename_model = os.path.join(model, file)
+		print('<- %s' % filename_obs)
+		d_obs = ds.read(filename_obs)
+		print('<- %s' % filename_model)
+		if not os.path.exists(filename_model):
+			print('%s: files does not exist' % filename_model, file=sys.stderr)
+			continue
+		d2 = ds.read(filename_model, 'sic')
+		sic = d['sic'] > 0.15
+		sic2 = d2['sic'] > 0.15
+		if sic != sic2:
+			continue
+		if sea_ice is None:
+			pass
+		elif sea_ice and not sic or not sea_ice and sic:
+			continue
+		mask = (
+			~np.ma.getmaskarray(d['theta']) & ~np.isnan(d['theta']) &
+			~np.ma.getmaskarray(d['zg']) & ~np.isnan(d['zg'])
+		)
+		ds.select(d, {'p': mask})
+		d['filename'] = filename
+		if len(d['p']) == 0:
+			continue
+		if 'ts' not in d:
+			print('%s: surface parameters not present, skipping' % filename,
+				file=sys.stderr)
+			continue
+		dd += [d]
+	dd = [d for d in dd if d['lat'][0] >= lat1 and d['lat'][0] < lat2]
+	for d in dd:
+		if 'lcl' in d:
+			ds.rename(d, 'lcl', 'zg_lcl')
+		#if 'sll' in d:
+		#	ds.rename(d, 'sll', 'zg_sll')
+	d_stats = calc_stats(dd)
+	plot(d_stats, dd, title=title)
+	print('-> %s' % output)
+	plt.savefig(output, bbox_inches='tight', dpi=600)

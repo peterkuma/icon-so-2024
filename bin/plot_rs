@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+'''Plot a radiosonde profile.
+
+Usage: plot_rs INPUT OUTPUT TITLE
+
+Arguments:
+
+  INPUT   Input file - the output of rstool (NetCDF).
+  OUTPUT  Output file (PDF).
+  TITLE   Plot title.
+'''
+
+import sys
+import datetime as dt
+import numpy as np
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+from matplotlib.gridspec import GridSpec
+import matplotlib.lines as mlines
+import ds_format as ds
+import aquarius_time as aq
+import datetime as dt
+#import lidar_toolbox as lidar
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+#mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=8)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+def read(filename):
+	return ds.from_netcdf(filename)
+
+def plot_contours(p, z, pp, zlim, color='k'):
+	zz = np.interp(-pp, -p, z)
+	for i, zzi in enumerate(zz):
+		if zzi <= zlim[0] or zzi > zlim[1]: continue
+		plt.axhline(y=zzi*1e-3, color=color, lw=0.5, alpha=0.3)
+		plt.text(-24.5, zzi*1e-3, '%d hPa' % (pp[i]*1e-2),
+			fontsize=7,
+			verticalalignment='bottom',
+			color=color,
+		)
+
+def plot_lcl(lcl, linestyle='solid'):
+	plt.axhline(y=lcl*1e-3, color='black', lw=0.8, linestyle=linestyle)
+	plt.text(24.5, lcl*1e-3, 'LCL',
+		fontsize=8,
+		weight='bold',
+		verticalalignment='bottom',
+		horizontalalignment='right',
+	)
+
+def plot_sll(ts, p, theta):
+	p0 = p[0]
+	p1 = np.interp(ts, theta, p)
+	#plt.plot([ts - 273.15, ts - 273.15], [-p0*1e-2, -p1*1e-2], lw=1)
+	plt.axhline(y=-p1*1e-2, color='black', lw=0.8, linestyle='dashed')
+	plt.scatter(ts - 273.15, -p0*1e-2, s=5,
+		clip_on=False,
+		zorder=100,
+		color='k'
+	)
+	plt.text(ts - 273.15, -p0*1e-2, 'SST',
+		fontsize=8,
+		weight='bold',
+		horizontalalignment='center',
+		verticalalignment='top',
+	)
+	plt.text(32, -p1*1e-2, 'SLL',
+		fontsize=8,
+		weight='bold',
+		verticalalignment='bottom',
+	)
+
+def plot_clw_cli(p, clw, cli):
+	plt.plot(clw*1e6, -p*1e-2, color='red', lw=0.7)
+	plt.plot(cli*1e6, -p*1e-2, color='blue', lw=0.7)
+
+def plot_par(ta_par_s, z, ta, label='PAR', x=0, linestyle='solid', ylim=None):
+	n = len(z)
+	for i in range(n):
+		parz = z[i]
+		if ta_par_s[i] < ta[i]:
+			break
+	if ylim is not None and parz*1e-3 > ylim[1]:
+		return
+	plt.axhline(y=parz*1e-3, color='black', lw=0.8, linestyle=linestyle)
+	if label is not None:
+		plt.text(x, parz*1e-3, label,
+			fontsize=8,
+			weight='bold',
+			verticalalignment='bottom',
+			horizontalalignment='right',
+		)
+
+def plot_lidar(backscatter, time, range_, p, zg):
+	lidar_p = np.interp(range_, zg, p)
+	#backscatter = lidar.filter_noise(backscatter, range_)[0]
+	#backscatter[backscatter < 0] = 0
+	#print(backscatter)
+	cmap = mpl.cm.get_cmap('nipy_spectral')
+	cmap.set_over('white')
+	cmap.set_under('k')
+	time_dt = [aq.to_datetime(t) for t in time]
+	plt.contourf(time_dt, -lidar_p*1e-2, backscatter.T*1e5,
+		cmap=cmap,
+		levels=np.arange(1, 50, 0.5),
+		extend='both'
+	)
+	plt.text(0.5, 0.982, 'LIDAR',
+		horizontalalignment='center',
+		verticalalignment='top',
+		fontsize=9,
+		color='white',
+		transform=plt.gca().transAxes,
+	)
+	cb = plt.colorbar(fraction=0.1, aspect=30, label='Attenuated volume backscatter coefficient ($\\times$10$^5$ m$^{-1}$.sr$^{-1}$)')
+	cb.set_ticks(np.arange(5, 51, 5))
+	time_ticks = [time_dt[0], time_dt[int(round(len(time_dt)/2))], time_dt[-1]]
+	time_ticklabels = [t.strftime('%H:%M') for t in time_ticks]
+	plt.gca().xaxis.set_ticks(time_ticks)
+	plt.gca().xaxis.set_ticklabels(time_ticklabels)
+	plt.gca().yaxis.set_ticks([])
+	plot_contours(p, zg, np.arange(100, 1000, 50)*1e2, color='white')
+
+def plot_desc(lat, lon, time):
+	time_s = aq.to_datetime(time).strftime('%Y-%m-%d %H:%M')
+	lat_s = '%d°N' % lat if lat >= 0 else '%d°S' % (-lat)
+	lon_s = '%d°E' % lon if lon >= 0 else '%d°W' % (-lon)
+	s = '%s %s | %s UTC' % (lat_s, lon_s, time_s)
+	plt.text(0.972, 0.65, s,
+		transform=plt.gca().transAxes,
+		fontsize=9,
+		bbox=dict(facecolor='#f5f5f5', edgecolor='none'),
+		horizontalalignment='right',
+	)
+
+def plot(d, title=''):
+	#plt.rc('font', family='Public Sans', weight='medium', size=12)
+	#plt.rc('axes', linewidth=0.5)
+	#plt.rc('xtick.major', width=0.5)
+	#plt.rc('ytick.major', width=0.5)
+	plt.figure(figsize=(6,6))
+	xlim = [-25, 35]
+	ylim = [0, 5]
+	#gs = GridSpec(1, 3, width_ratios=[0.6, 0.2, 0.2], wspace=0)
+	#gs = GridSpec(1, 2, width_ratios=[0.7, 0.3], wspace=0.1)
+	#plt.subplot(gs[0])
+	p0 = d['p'][0]
+	markevery = max(1, int(len(d['p'])/20))
+	plt.plot(d['theta'] - 273.15, d['zg']*1e-3, lw=1.2, color='k')
+	if 'ua' in d and 'va' in d:
+		plt.plot(d['ua'], d['zg']*1e-3, lw=0.9, color='#ff6600', marker='>', markevery=markevery, markersize=2.5)
+		plt.plot(d['va'], d['zg']*1e-3, lw=0.9, color='#dc0000', marker='^', markevery=markevery, markersize=2.5)
+	zg2 = np.interp(-d['p2'], -d['p'], d['zg'])
+	plt.plot(-1/d['bvf']/10, zg2*1e-3, lw=0.9, color='#ba00ff', marker='s', markersize=2.5)
+	if 'e' in d and 'es' in d:
+		plt.plot(d['e']*1e-2, d['zg']*1e-3, lw=0.9, color='#9ade00', marker='D', markevery=markevery, markersize=2.5)
+		plt.plot(d['es']*1e-2, d['zg']*1e-3, lw=0.9, color='#009100', marker='x', markevery=markevery, markersize=2.5)
+	if 'hur' in d:
+		plt.plot(d['hur']*1e-1, d['zg']*1e-3, lw=0.9, color='#0000e2', marker='o', markevery=markevery, markersize=2.5)
+	#plt.plot((d['p'] - d['p_h'])*10, -d['p'], lw=1)
+	#if 'ts' in d:
+	#	plot_sll(d['ts'], d['p'], d['theta'])
+	if 'zg_lcl' in d:
+		plot_lcl(d['zg_lcl'], linestyle='dashed')
+	if 'ta_surf_par' in d:
+		plot_par(d['ta_surf_par'], d['zg'], d['ta'],
+			label='SLL',
+			x=22,
+			linestyle='dashdot',
+			ylim=ylim,
+		)
+	if 'ta_surf_par_s' in d:
+		plot_par(d['ta_surf_par_s'], d['zg'], d['ta'],
+			label='SLL$_s$',
+			x=19,
+			linestyle='dotted',
+			ylim=ylim,
+		)
+	plt.axvline(10, lw=0.5, alpha=0.3, color='k')
+	plt.axvline(x=0, color='black', lw=0.3, alpha=0.3)
+	plot_contours(d['p'], d['zg'], np.arange(100, 1050, 50)[::-1]*1e2, zlim=[0, 5e3])
+	#plt.yticks(np.arange(-1000, -100, 100), -np.arange(-1000, -100, 100))
+	plt.xlim(xlim)
+	plt.ylim(ylim)
+	#plt.ylim(-p0*1e-2, -d['p'][-1]*1e-2)
+	plt.suptitle(title, y=0.92)
+	#plt.suptitle('%s %.4f %.4f' % (title, d['lon'][0], d['lat'][0]))
+	#plt.suptitle('%s UTC | %s %s' % (
+	#	summary['launched'],/tmp/TAN1802-17.nc
+	#	summary['lon'],
+	#	summary['lat'],
+	#))
+	#plt.ylabel('Pressure (hPa)')
+	plt.xlabel('[Quantities and units in the legend]')
+	plt.ylabel('Height (km)')
+	#lat = d.get('launch_lat', d.get('launch_latitude'))
+	#lon = d.get('launch_lon', d.get('launch_longitude'))
+	plot_desc(d['lat'][0], d['lon'][0], d['time'][0])
+	legend = plt.legend(
+			[u'Potential temperature (°C)'] + \
+			(['Zonal wind (m s$^{-1}$)', 'Meridional wind (m s$^{-1}$)'] if 'ua' in d and 'va' in d else []) + \
+			['BVF (-1$\\times$10$^{1}$ s)'] + \
+			(['Vapour pressure (hPa)', 'Saturation vapour pressure (hPa)'] if 'e' in d and 'es' in d else []) + \
+			([u'Relative humidity (%/10)'] if 'hur' in d else []),
+		loc='upper right',
+	)
+	#handles, labels = plt.gca().get_legend_handles_labels()
+	#handles.append([
+	#	mlines.Line2D([], [], linestyle='dashed'),
+	#	mlines.Line2D([], [], linestyle='dotted')
+	#])
+	#labels.append([
+	#	'SST lifting level (SLL)',
+	#	'Lifting condensation level (LCL)',
+	#])
+	#plt.legend(handles, labels)
+	#plt.subplot(gs[1])
+	#plot_lidar(d['lidar_backscatter'], d['lidar_time'], d['lidar_range'], d['p'], d['zg'])
+#	if 'clw' in d and 'cli' in d:
+#		plot_clw_cli(d['p'], d['clw'], d['cli'])
+#		legend = plt.legend([
+#				'CLC (mg/kg)',
+#				'IC (mg/kg)',
+#			],
+#			fontsize=8,
+#			loc='upper right',
+#			framealpha=1,
+#			edgecolor='none',
+#			fancybox=False,
+#		)
+#		frame = legend.get_frame()
+#		frame.set_facecolor('#eeeeee')
+#
+#	plt.ylim(-d['p'][0]*1e-2, -d['p'][-1]*1e-2)
+#	plt.xlim(0, 100)
+	#plt.gca().xaxis.set_ticks([])
+#	plt.gca().yaxis.set_ticks([])
+	#plot_chm15k(chm15k_data, d['p'], d['z'])
+	#plt.subplot(gs[2])
+	#plot_chm15k_line(chm15k_data, d['p'], d['z'])
+
+if __name__ == '__main__':
+	if len(sys.argv) != 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_filename = sys.argv[1]
+	output_filename = sys.argv[2]
+	title = sys.argv[3]
+	d = read(input_filename)
+	plot(d, title=title)
+	plt.savefig(output_filename, bbox_inches='tight', dpi=600)
