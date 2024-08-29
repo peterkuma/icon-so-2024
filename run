@@ -455,6 +455,11 @@ plot_rs_agg)
 	done
 	;;
 
+plot_map)
+	mkdir -p plot/map
+	bin/plot_map
+	;;
+
 *)
 	echo "Invalid task \"$task\"" >&2
 	;;
