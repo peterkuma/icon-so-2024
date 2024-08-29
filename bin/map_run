@@ -1,0 +1,137 @@
+#!/usr/bin/env Rscript
+
+source('lib/map.R')
+
+map(
+    c(
+        'data/obs/track_hourly_40S+/TAN1502.nc',
+        'data/obs/track_hourly_40S+/TAN1702.nc',
+        'data/obs/track_hourly_40S+/TAN1802.nc',
+        'data/obs/track_hourly_40S+/HMNZSW16.nc',
+        'data/obs/track_hourly_40S+/NBP1704.nc',
+        'data/obs/track_hourly_40S+/AA15-16.nc',
+        'data/obs/track_hourly_40S+/MARCUS.nc',
+        'data/obs/track_hourly_40S+/PS81_2.nc',
+        'data/obs/track_hourly_40S+/PS81_3.nc',
+        'data/obs/track_hourly_40S+/PS81_4.nc',
+        'data/obs/track_hourly_40S+/PS81_5.nc',
+        'data/obs/track_hourly_40S+/PS81_6.nc',
+        'data/obs/track_hourly_40S+/PS81_7.nc',
+        'data/obs/track_hourly_40S+/PS81_8.nc',
+        'data/obs/track_hourly_40S+/PS81_9.nc',
+        'data/obs/track_hourly_40S+/PS77_2.nc',
+        'data/obs/track_hourly_40S+/PS77_3.nc',
+        'data/obs/track_hourly_40S+/PS79_2.nc',
+        'data/obs/track_hourly_40S+/PS79_3.nc',
+        'data/obs/track_hourly_40S+/PS79_4.nc',
+        'data/obs/track_hourly_40S+/PS103.nc',
+        'data/obs/track_hourly_40S+/PS104.nc',
+        'data/obs/track_hourly_40S+/PS111.nc',
+        'data/obs/track_hourly_40S+/PS112.nc',
+        'data/obs/track_hourly_40S+/PS117.nc',
+        'data/obs/track_hourly_40S+/PS118.nc',
+        'data/obs/track_hourly_40S+/PS123.nc',
+        'data/obs/track_hourly_40S+/PS124.nc',
+        'data/obs/track_hourly_40S+/PS89.nc',
+        'data/obs/track_hourly_40S+/PS96.nc',
+        'data/obs/track_hourly_40S+/PS97.nc'
+    ),
+    output='plot/map/map.pdf',
+    col=c(
+        '#ba00ff',
+        '#ba00ff',
+        '#ba00ff',
+        '#dab71e',
+        '#009100',
+        '#000ccc',
+        '#000ccc',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000',
+        '#dc0000'
+    ),
+	label.col=c(
+        '#ba00ff',
+        '#dab71e',
+        '#009100',
+        '#000ccc',
+        '#dc0000'
+	),
+    labels=c(
+        'RV Tangaroa',
+        'HMNZS Wellington',
+		'NB Palmer',
+        'RSV Aurora Australis',
+        'RV Polarstern'
+    ),
+    points=list(
+        c(158.9400, -54.4968)
+    ),
+    points.labels=c(
+        'Macquarie Is.'
+    ),
+    points.col=c(
+        # 'orange'
+        '#ff6600'
+    ),
+    geo.labels=c(
+        'Hobart',
+        'Davis',
+        'Casey',
+        'Macquarie Is.',
+        'Ross Is.',
+        'Wellington',
+        'Mawson',
+		'Cape Town',
+		'Falkland Is.',
+		'South Georgia and\nSouth Sandwich Is.',
+		'Punta Arenas',
+		'Neumayer Station III',
+        'Chatham Is.'
+    ),
+    geo.points=list(
+        c(147.3291667, -42.8791667),
+        c(077.9675000, -68.5761111),
+        c(110.5277778, -66.2822222),
+        c(158.8588889, -54.6097222),
+        c(167.7500000, -77.5000000),
+        c(174.7755556, -41.2863889),
+        c(062.8733333, -67.6025000),
+		c(18.4173960, -33.9289920),
+		c(-59.4621, -51.7623),
+		c(-36.5412, -54.4199),
+		c(-70.90804, -53.16262),
+		c(-8.2741670, -70.6744440),
+        c(-176.5000000, -44.00000000)
+    ),
+    regions=list()
+    #regions=list(
+    #    list('A', cbind(c(160, 195), c(-80, -70))),
+    #    list('B', cbind(c(160, 195), c(-70, -60))),
+    #    list('C', cbind(c(160, 195), c(-60, -50))),
+    #    list('D', cbind(c(120, 60), c(-65, -60)))
+    #)
+)
