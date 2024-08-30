@@ -460,6 +460,21 @@ plot_map)
 	bin/plot_map
 	;;
 
+calc_cyc_dist)
+	mkdir -p data/cyc/dist/era5
+	mkdir -p data/cyc/dist/icon_cy3
+	parallel bin/calc_cyc_dist data/cyc/cytrack/era5.nc {} {} data/cyc/dist/era5/{}.nc ::: {2010..2013}
+	parallel bin/calc_cyc_dist data/cyc/cytrack/icon_cy3.nc {} {} data/cyc/dist/icon_cy3/{}.nc ::: {2021..2024}
+	;;
+
+plot_cyc_dist)
+	mkdir -p plot/cyc_dist
+	bin/plot_cyc_dist data/cyc/dist/era5/201[0123].nc plot/cyc_dist/era5_2010-2013.pdf
+	bin/plot_cyc_dist data/cyc/dist/era5/201[0123].nc plot/cyc_dist/era5_2010-2013.png
+	bin/plot_cyc_dist data/cyc/dist/icon_cy3/202[1234].nc plot/cyc_dist/icon_cy3_2021-2024.pdf
+	bin/plot_cyc_dist data/cyc/dist/icon_cy3/202[1234].nc plot/cyc_dist/icon_cy3_2021-2024.png
+	;;
+
 *)
 	echo "Invalid task \"$task\"" >&2
 	;;

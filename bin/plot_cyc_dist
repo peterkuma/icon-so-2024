@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+'''Plot cyclone distribution.
+
+Usage: plot_cyc_dist INPUT... OUTPUT
+
+Arguments:
+
+  INPUT   Input file - the output of calc_cyc_dist (NetCDF).
+  OUTPUT  Output plot (PDF).
+'''
+
+import sys
+import numpy as np
+import matplotlib.path as mpath
+import ds_format as ds
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=9)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+if __name__ == '__main__':
+	if len(sys.argv) < 3:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	input_ = sys.argv[1:-1]
+	output = sys.argv[-1]
+
+	lon = None
+	lat = None
+	hist = None
+	n = None
+
+	for filename in input_:
+		d = ds.read(filename)
+		if hist is None:
+			hist = d['hist']
+			n = d['n']
+		else:
+			hist += d['hist']
+			n += d['n']
+		lon = d['lon']
+		lat = d['lat']
+
+	fig = plt.figure()
+	ax = fig.add_subplot(1, 1, 1, projection=ccrs.SouthPolarStereo())
+	ax.set_extent([-180, 180, -90, -40], ccrs.PlateCarree())
+	gl = ax.gridlines(
+		zorder=200,
+		alpha=0.5,
+		draw_labels=True,
+		rotate_labels=False,
+		ylabel_style=dict(ha='left'),
+	)
+	ax.add_feature(cfeature.LAND,
+		zorder=2,
+		color='#e0e0e0',
+		lw=0,
+	)
+	ax.add_feature(cfeature.COASTLINE,
+		zorder=100,
+		edgecolor='#666666',
+		lw=0.5,
+	)
+
+	levels = np.arange(0, 60, 5)
+
+	cf = ax.contourf(lon, lat, hist.T/n*100,
+		transform=ccrs.PlateCarree(),
+		levels=levels,
+	)
+
+	plt.colorbar(cf, label='Fraction of cyclonic days (%)', ticks=levels)
+
+	theta = np.linspace(0, 2*np.pi, 100)
+	center, radius = [0.5, 0.5], 0.5
+	verts = np.vstack([np.sin(theta), np.cos(theta)]).T
+	circle = mpath.Path(verts * radius + center)
+	ax.set_boundary(circle, transform=ax.transAxes)
+
+	plt.draw()
+	for ea in gl.label_artists:
+		pos = ea.get_position()
+		ea.set_text(' ' + ea.get_text())
+		if (pos[0]==150):
+			ea.set_position([0, pos[1] + 2])
+
+	plt.savefig(output, bbox_inches='tight', dpi=600)
