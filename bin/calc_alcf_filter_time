@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+'''Calculate ALCF include filter total time in days.
+
+Usage: calc_alcf_filter_time INPUT...
+
+Arguments:
+
+  INPUT  Input file - ALCF include filter (NetCDF).
+'''
+
+import sys
+import numpy as np
+import ds_format as ds
+
+if __name__ == '__main__':
+	if len(sys.argv) < 2:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1:]
+
+	s = 0
+	for filename in input_:
+		d = ds.read(filename)
+		dt = d['time_bnds'][:,1] - d['time_bnds'][:,0]
+		s += np.sum(dt)
+
+	print(s)

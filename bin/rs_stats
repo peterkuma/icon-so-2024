@@ -58,6 +58,11 @@ META = {
 		'long_name': 'lifting condensation level geopotential height',
 		'units': 'm',
 	},
+	'n': {
+		'.dims': [],
+		'long_name': 'number of profiles',
+		'units': '1',
+	},
 	#'zg_ll_hist': {
 	#	'.dims': ['zg_ll'],
 	#	'long_name': 'lifting level geopotential height histogram',
@@ -164,6 +169,7 @@ if __name__ == '__main__':
 		#if 'zg_ll' in d and d['zg_ll'] is not None:
 		#	zg_ll += [d['zg_ll']]
 
+	nprofiles = len(dd)
 	thetav_avg = np.nanmean(thetav, axis=0)
 	thetav_low = np.nanpercentile(thetav, 16, axis=0)
 	thetav_high = np.nanpercentile(thetav, 84, axis=0)
@@ -186,6 +192,7 @@ if __name__ == '__main__':
 		'hur_high': hur_v_high,
 		'lcl_hist': lcl_hist,
 		'lcl': 0.5*(lcl_bins[1:] + lcl_bins[:-1]),
+		'n': nprofiles,
 		#'zg_ll_hist': zg_ll_hist,
 		#'zg_ll': 0.5*(zg_ll_bins[1:] + zg_ll_bins[:-1]),
 		'.': META,

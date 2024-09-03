@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-'''Plot cyclone distribution.
+'''Plot geographical distribution.
 
-Usage: plot_cyc_dist INPUT... OUTPUT
+Usage: plot_geo_dist TYPE INPUT... OUTPUT
 
 Arguments:
 
-  INPUT   Input file - the output of calc_cyc_dist (NetCDF).
+  TYPE    One of: "cyc" (cyclone), "stab" (stability), or a variable name.
+  INPUT   Input file - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
   OUTPUT  Output plot (PDF).
 '''
 
@@ -15,6 +16,7 @@ import matplotlib.path as mpath
 import ds_format as ds
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import cartopy.util as cutil
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
@@ -33,26 +35,48 @@ mpl.rc('grid', color='k')
 mpl.rc('grid', alpha=0.2)
 mpl.rc('grid', lw=0.1)
 
+LABEL = {
+	'cyc': 'Fraction of cyclonic days (%)',
+	'stab': 'Fraction of stable time steps (%)'
+}
+
+LEVELS = {
+	'cyc': np.arange(0, 60, 5),
+	'stab': np.arange(0, 105, 5),
+	'ps': np.arange(950, 1050, 5)*100,
+	'p700': np.arange(698, 702.5, 0.5)*100,
+	'tas': np.arange(250, 300, 5),
+	'ta700': np.arange(245, 280, 5),
+	'lts': np.arange(5, 25, 1),
+}
+
+CMAP = {
+	'cyc': 'viridis',
+	'stab': 'bwr',
+}
+
 if __name__ == '__main__':
-	if len(sys.argv) < 3:
+	if len(sys.argv) < 4:
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
 
-	input_ = sys.argv[1:-1]
+	type_ = sys.argv[1]
+	input_ = sys.argv[2:-1]
 	output = sys.argv[-1]
 
 	lon = None
 	lat = None
-	hist = None
+	z = None
 	n = None
 
 	for filename in input_:
 		d = ds.read(filename)
-		if hist is None:
-			hist = d['hist']
+		z1 = d['hist'] if type_ in ['cyc', 'stab'] else d[type_]
+		if z is None:
+			z = z1
 			n = d['n']
 		else:
-			hist += d['hist']
+			z += z1
 			n += d['n']
 		lon = d['lon']
 		lat = d['lat']
@@ -78,14 +102,20 @@ if __name__ == '__main__':
 		lw=0.5,
 	)
 
-	levels = np.arange(0, 60, 5)
+	levels = LEVELS.get(type_)
 
-	cf = ax.contourf(lon, lat, hist.T/n*100,
+	cmap = CMAP.get(type_)
+
+	z2, x, y = cutil.add_cyclic(z.T, lon, lat)
+	if type_ in ['cyc', 'stab']:
+		z2 = z2*100/n
+	cf = ax.contourf(x, y, z2,
 		transform=ccrs.PlateCarree(),
 		levels=levels,
+		cmap=cmap,
 	)
 
-	plt.colorbar(cf, label='Fraction of cyclonic days (%)', ticks=levels)
+	plt.colorbar(cf, label=LABEL.get(type_, type_), ticks=levels)
 
 	theta = np.linspace(0, 2*np.pi, 100)
 	center, radius = [0.5, 0.5], 0.5
