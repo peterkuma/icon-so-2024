@@ -69,8 +69,13 @@ if __name__ == '__main__':
 				else:
 					do[var] += d1[var].T
 			n += 1
-		lon = lon[::4]
-		lat = lat[::4]
+		print(lat)
+		mod = len(lat) % 4
+		if mod != 0:
+			lat = lat[mod:]
+			hist = hist[:,mod:]
+		lon = scipy.ndimage.zoom(lon, 0.25)
+		lat = scipy.ndimage.zoom(lat, 0.25)
 		hist = scipy.ndimage.zoom(hist, 0.25)
 		for var in do.keys():
 			do[var] = scipy.ndimage.zoom(do[var], 0.25)

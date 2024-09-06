@@ -17,6 +17,7 @@ from rstool.algorithms import calc_esat, calc_w, calc_w
 VARS_ERA5 = {
 	'plev': {
 		'time': 'time',
+		'valid_time': 'time',
 		'longitude': 'lon',
 		'latitude': 'lat',
 		't': 'ta',
@@ -25,12 +26,14 @@ VARS_ERA5 = {
 		'v': 'va',
 		'q': 'hus',
 		'level': 'p',
+		'pressure_level': 'p',
 	},
 	'surf': {
 		'time': 'time',
+		'valid_time': 'time',
 		'longitude': 'lon',
 		'latitude': 'lat',
-		'sst': 'ts',
+		'skt': 'ts',
 		'sp': 'ps',
 		't2m': 'tas',
 		'd2m': 'tds',
@@ -161,11 +164,13 @@ def read(type_, dirname, t, lon, lat):
 		vars_p = vars_[product]
 		keys = list(vars_p.keys())
 		values = list(vars_p.values())
-		time_var = keys[values.index('time')]
+		time_vars = [k for k, v in vars_p.items() if v == 'time']
 		lon_var = keys[values.index('lon')]
 		lat_var = keys[values.index('lat')]
 
-		d = ds.read(filename, [time_var, lon_var, lat_var], jd=True)
+		d = ds.read(filename, time_vars + [lon_var, lat_var], jd=True)
+		for var in time_vars:
+			if var in d: time_var = var
 		time = d[time_var]
 		lats = d[lat_var]
 		lons = d[lon_var] % 360
@@ -194,7 +199,8 @@ def read(type_, dirname, t, lon, lat):
 			sel={time_var: i, lat_var: j, lon_var: k}
 		)
 		for var, new_var in vars_[product].items():
-			do[new_var] = d[var]
+			if var in d:
+				do[new_var] = d[var]
 
 	if type_ == 'merra2':
 		do['hur'] *= 100	
@@ -210,9 +216,10 @@ def read(type_, dirname, t, lon, lat):
 		do['p'] *= 100
 		do['zg'] /= 9.80665
 
+	order = np.argsort(do['p'])[::-1]
 	for var in ds.vars(do):
 		if do[var].ndim == 1:
-			do[var] = do[var][::-1]
+			do[var] = do[var][order]
 
 	n = len(do['p'])
 	do['time'] = np.full(n, t)

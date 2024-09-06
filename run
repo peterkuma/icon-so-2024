@@ -397,12 +397,12 @@ rs_obs)
 	;;
 
 rs_merra2)
-	rs merra2 input/merra2 data/merra2/rs/profiles
+	rs merra2 input/merra2/samples data/merra2/rs/profiles
 	rs_rstool data/merra2/rs/profiles data/merra2/rs/profiles
 	;;
 
 rs_era5)
-	rs era5 input/era5 data/era5/rs/profiles
+	rs era5 input/era5/samples data/era5/rs/profiles
 	rs_rstool data/era5/rs/profiles data/era5/rs/profiles
 	;;
 
