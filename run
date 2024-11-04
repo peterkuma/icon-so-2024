@@ -170,10 +170,12 @@ case "$task" in
 #	;;
 
 download_era5)
+	mkdir -p input/era5
 	parallel -t -j1 'mkdir -p input/era5/{}; alcf download era5 track: data/obs/track_hourly_40S+/{}.nc input/era5/{}' :::: input/obs/sources/all
 	;;
 
 download_merra2)
+	mkdir -p input/merra2
 	parallel -t -j1 'mkdir -p input/merra2/{}; alcf download merra2 track: data/obs/track_hourly_40S+/{}.nc input/merra2/{}' :::: input/obs/sources/all
 	;;
 
@@ -456,7 +458,7 @@ plot_rs_agg)
 	;;
 
 plot_map)
-	mkdir -p plot/map
+	mkdir -p plot
 	bin/plot_map
 	;;
 
