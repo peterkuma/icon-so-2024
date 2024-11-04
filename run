@@ -21,8 +21,17 @@ recalib () {
 	local in="$1"
 	local out="$2"
 	mkdir -p "$out"
-	parallel -t alcf lidar default "$in" "$out" cloud_threshold: 5e-6 bsd: 5e-6 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/chm15k
-	parallel -t alcf lidar default "$in" "$out" cloud_threshold: 5e-6 bsd: 10e-6 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51
+	parallel -t \
+		alcf lidar default "$in" "$out" \
+		cloud_threshold: 5e-6 \
+		bsd: 5e-6 keep_vars: { $keep_vars } \
+		:::: input/obs/sources/by_instrument/chm15k
+	parallel -t \
+		alcf lidar default "$in" "$out" \
+		cloud_threshold: 5e-6 \
+		bsd: 10e-6 \
+		keep_vars: { $keep_vars } \
+		:::: input/obs/sources/by_instrument/cl51
 }
 
 run_alcf () {
@@ -30,23 +39,37 @@ run_alcf () {
 	local in="$2"
 	local out="$3"
 	mkdir -p "$out"
-	parallel -j 4 -u alcf auto model "$model" cl51 "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 njobs: 4 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51_voyages
-	parallel -j 1 -u alcf auto model "$model" cl51 "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 track_gap: 0 njobs: 16 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/cl51_stations
-	parallel -j 4 -u alcf auto model "$model" chm15k "$in" "$out" track: data/obs/track_hourly_40S+/{}.nc --track_lon_180 njobs: 4 keep_vars: { $keep_vars } :::: input/obs/sources/by_instrument/chm15k
+	parallel -j 4 -u \
+		alcf auto model "$model" cl51 "$in" "$out" \
+		track: data/obs/track_hourly_40S+/{}.nc \
+		--track_lon_180 \
+		njobs: 4 \
+		keep_vars: { $keep_vars } \
+		:::: input/obs/sources/by_instrument/cl51_voyages
+	parallel -j 1 -u \
+		alcf auto model "$model" cl51 "$in" "$out" \
+		track: data/obs/track_hourly_40S+/{}.nc \
+		--track_lon_180 \
+		track_gap: 0 \
+		njobs: 16 \
+		keep_vars: { $keep_vars } \
+		:::: input/obs/sources/by_instrument/cl51_stations
+	parallel -j 4 -u \
+		alcf auto model "$model" chm15k "$in" "$out" \
+		track: data/obs/track_hourly_40S+/{}.nc \
+		--track_lon_180 \
+		njobs: 4 \
+		keep_vars: { $keep_vars } \
+		:::: input/obs/sources/by_instrument/chm15k
 }
 
 filter () {
 	local in="$1"
 	local out="$2"
 	mkdir -p "$(dirname "$out")"
-	parallel -j1 -t bin/alcf_filter "$in" data/obs/track_hourly_40S+/{}.nc -40 "$out" :::: input/obs/sources/all
-}
-
-filter_sic () {
-	local in="$1"
-	local out="$2"
-	mkdir -p "$(dirname "$out")"
-	parallel -j1 bin/alcf_filter_sic "$in" data/obs/surface_sic/{}.nc "$out" :::: input/obs/sources/all
+	parallel -j1 -t \
+		bin/alcf_filter "$in" data/obs/track_hourly_40S+/{}.nc -40 "$out" \
+		:::: input/obs/sources/all
 }
 
 filter_lts () {
@@ -54,62 +77,71 @@ filter_lts () {
 	local in="$2"
 	local out="$3"
 	mkdir -p "$(dirname "$out")"
-	parallel -j1 bin/alcf_filter_lts_eis lts "$stab" 12 "$in" "$out" :::: input/obs/sources/all
+	parallel -j1 \
+		bin/alcf_filter_lts_eis lts "$stab" 12 "$in" "$out" \
+		:::: input/obs/sources/all
 }
 
 stats () {
 	local in="$1"
 	local out="$2"
 	local filter_noprecip="$3"
-	local filter_sic="$4"
-	local filter="$5"
+	local filter="$4"
 	mkdir -p "$(dirname "$out")"
-	parallel -t alcf stats "$in" "$out" filter_include: { "$filter_noprecip" "$filter_sic" "$filter" } keep_vars: { $keep_vars } --debug :::: input/obs/sources/all
+	parallel -t \
+		alcf stats "$in" "$out" \
+		filter_include: { "$filter_noprecip" "$filter" } \
+		keep_vars: { $keep_vars } \
+		--debug \
+		:::: input/obs/sources/all
 }
 
 stats_lat () {
 	local in="$1"
 	local out="$2"
 	local filter_noprecip="$3"
-	local filter_sic="$4"
-	local lat1="$5"
-	local lat2="$6"
+	local lat1="$4"
+	local lat2="$5"
 	mkdir -p "$(dirname "$out")"
-	parallel -t alcf stats "$in" "$out" filter_include: { "$filter_noprecip" "$filter_sic" } lat_lim: { "$lat1" "$lat2" } keep_vars: { $keep_vars } --debug :::: input/obs/sources/all
+	parallel -t \
+		alcf stats "$in" "$out" \
+		filter_include: { "$filter_noprecip" } \
+		lat_lim: { "$lat1" "$lat2" } \
+		keep_vars: { $keep_vars } \
+		--debug \
+		:::: input/obs/sources/all
 }
 
 stats_all () {
 	local in="$1"
 	local out="$2"
 	local filter_noprecip="$3"
-	local filter_sic="$4"
-	local filter_cyc="$5"
-	local filter_nocyc="$6"
-	local filter_cyc_2r="$7"
-	local filter_nocyc_2r="$8"
-	local filter_lts_stable="$9"
-	local filter_lts_unstable="${10}"
-	local year="${11}"
-	#local prefix=recalib_bsd_noprecip_sic
-	#stats "$in" "$out/40S+_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc"
-	#stats "$in" "$out/40S+_${prefix}_cyc/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_cyc/{}.nc" 
-	#stats "$in" "$out/40S+_${prefix}_nocyc/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_nocyc/{}.nc" 
-	#stats "$in" "$out/40S+_${prefix}_cyc_2r/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_cyc_2r/{}.nc"
-	#stats "$in" "$out/40S+_${prefix}_nocyc_2r/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_nocyc_2r/{}.nc"
-	#stats "$in" "$out/40S+_${prefix}_lts_stable/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_lts_stable/{}.nc"
-	#stats "$in" "$out/40S+_${prefix}_lts_unstable/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" "$filter_lts_unstable/{}.nc"
-	#stats_lat "$in" "$out/40-55S_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" -55 -40
-	#stats_lat "$in" "$out/55S+_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" "$filter_sic/{}.nc" -90 -55
+	local filter_cyc="$4"
+	local filter_nocyc="$5"
+	local filter_cyc_2r="$6"
+	local filter_nocyc_2r="$7"
+	local filter_lts_stable="$8"
+	local filter_lts_unstable="${9}"
+	local year="${10}"
 	local prefix=recalib_bsd_noprecip
-	stats "$in" "$out/40S+_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" ""
-	stats "$in" "$out/40S+_${prefix}_cyc/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_cyc/{}.nc" 
-	stats "$in" "$out/40S+_${prefix}_nocyc/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_nocyc/{}.nc" 
-	stats "$in" "$out/40S+_${prefix}_cyc_2r/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_cyc_2r/{}.nc"
-	stats "$in" "$out/40S+_${prefix}_nocyc_2r/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_nocyc_2r/{}.nc"
-	stats "$in" "$out/40S+_${prefix}_lts_stable/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_lts_stable/{}.nc"
-	stats "$in" "$out/40S+_${prefix}_lts_unstable/$year/{}.nc" "$filter_noprecip/{}.nc" "" "$filter_lts_unstable/{}.nc"
-	stats_lat "$in" "$out/40-55S_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" "" -55 -40
-	stats_lat "$in" "$out/55S+_$prefix/$year/{}.nc" "$filter_noprecip/{}.nc" "" -90 -55
+	stats "$in" "$out/40S+_$prefix/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" ""
+	stats "$in" "$out/40S+_${prefix}_cyc/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_cyc/{}.nc" 
+	stats "$in" "$out/40S+_${prefix}_nocyc/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_nocyc/{}.nc" 
+	stats "$in" "$out/40S+_${prefix}_cyc_2r/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_cyc_2r/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_nocyc_2r/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_nocyc_2r/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_lts_stable/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_lts_stable/{}.nc"
+	stats "$in" "$out/40S+_${prefix}_lts_unstable/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" "$filter_lts_unstable/{}.nc"
+	stats_lat "$in" "$out/40-55S_$prefix/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" -55 -40
+	stats_lat "$in" "$out/55S+_$prefix/$year/{}.nc" \
+		"$filter_noprecip/{}.nc" -90 -55
 }
 
 stats_reanalysis () {
@@ -119,7 +151,6 @@ stats_reanalysis () {
 		"$prefix/samples/{}/lidar_recalib_bsd" \
 		"$prefix/stats" \
 		"$filter/40S+_noprecip_thres0.1" \
-		"$filter/sic" \
 		"data/obs/filter/cyc" \
 		"data/obs/filter/nocyc" \
 		"data/obs/filter/cyc_2r" \
@@ -132,7 +163,9 @@ rs () {
 	type_="$1"
 	in="$2"
 	out="$3"
-	parallel "mkdir -p $out/{}; bin/rs_profile $type_ data/obs/rs/locations/{}.csv $in/{} -40 $out/{}" :::: input/obs/sources/rs
+	parallel \
+		"mkdir -p $out/{}; bin/rs_profile $type_ data/obs/rs/locations/{}.csv $in/{} -40 $out/{}" \
+		:::: input/obs/sources/rs
 }
 
 rs_rstool () {
@@ -140,7 +173,8 @@ rs_rstool () {
 	out="$2"
 	for src in $(cat input/obs/sources/rs); do
 		mkdir -p "$out/$src"
-		parallel "echo {}; rstool prof prof {} $out/$src/{/}" ::: "$in/$src/"*.nc
+		parallel "echo {}; rstool prof prof {} $out/$src/{/}" \
+			::: "$in/$src/"*.nc
 	done
 }
 
@@ -151,14 +185,23 @@ rs_stats () {
 	year="$4"
 	for subset in cyc_2r nocyc_2r lts_stable lts_unstable; do
 		mkdir -p "$out/40S+_$subset/$year"
-		parallel bin/rs_stats "$in"/{} "$filter/$subset/$year"/{}.nc -90 -40 "$out/40S+_$subset"/$year/{}.nc :::: input/obs/sources/rs 
+		parallel \
+			bin/rs_stats \
+			"$in"/{} \
+			"$filter/$subset/$year"/{}.nc \
+			-90 -40 \
+			"$out/40S+_$subset"/$year/{}.nc \
+			:::: input/obs/sources/rs 
 	done		
 	mkdir -p "$out/40S+/$year"
 	mkdir -p "$out/40-55S/$year"
 	mkdir -p "$out/55S+/$year"
-	parallel bin/rs_stats "$in"/{} -90 -40 "$out/40S+/$year"/{}.nc :::: input/obs/sources/rs 
-	parallel bin/rs_stats "$in"/{} -55 -40 "$out/40-55S/$year"/{}.nc :::: input/obs/sources/rs 
-	parallel bin/rs_stats "$in"/{} -90 -55 "$out/55S+/$year"/{}.nc :::: input/obs/sources/rs 
+	parallel bin/rs_stats "$in"/{} -90 -40 "$out/40S+/$year"/{}.nc \
+		:::: input/obs/sources/rs 
+	parallel bin/rs_stats "$in"/{} -55 -40 "$out/40-55S/$year"/{}.nc \
+		:::: input/obs/sources/rs 
+	parallel bin/rs_stats "$in"/{} -90 -55 "$out/55S+/$year"/{}.nc \
+		:::: input/obs/sources/rs 
 }
 
 case "$task" in
@@ -171,12 +214,16 @@ case "$task" in
 
 download_era5)
 	mkdir -p input/era5
-	parallel -t -j1 'mkdir -p input/era5/{}; alcf download era5 track: data/obs/track_hourly_40S+/{}.nc input/era5/{}' :::: input/obs/sources/all
+	parallel -t -j1 \
+		'mkdir -p input/era5/{}; alcf download era5 track: data/obs/track_hourly_40S+/{}.nc input/era5/{}' \
+		:::: input/obs/sources/all
 	;;
 
 download_merra2)
 	mkdir -p input/merra2
-	parallel -t -j1 'mkdir -p input/merra2/{}; alcf download merra2 track: data/obs/track_hourly_40S+/{}.nc input/merra2/{}' :::: input/obs/sources/all
+	parallel -t -j1 \
+		'mkdir -p input/merra2/{}; alcf download merra2 track: data/obs/track_hourly_40S+/{}.nc input/merra2/{}' \
+		:::: input/obs/sources/all
 	;;
 
 alcf_merra2)
@@ -187,81 +234,96 @@ alcf_era5)
 	run_alcf era5 input/era5/{} data/era5/samples/{}
 	;;
 
-surface_sic)
-	mkdir -p data/obs/surface_sic
-	parallel -t bin/surface_sic data/obs/track_hourly_40S+/{}.nc /d/var/ds/nsidc/{amsr-e\,amsr2-unified-l3-daily-12.5km-v001,sea-ice-ps-s25km-v2.0} data/obs/surface_sic/{}.nc :::: input/obs/sources/all
-	;;
-
 recalib_obs)
-	recalib input/obs/samples/{}/lidar data/obs/samples/{}/lidar_recalib_bsd data/obs/track_hourly_40S+/{}.nc
+	recalib \
+		input/obs/samples/{}/lidar \
+		data/obs/samples/{}/lidar_recalib_bsd \
+		data/obs/track_hourly_40S+/{}.nc
 	;;
 
 recalib_model)
 	for year in $model_years; do
-		recalib "input/$model/$year/{}/lidar" "data/$model/samples/$year/{}/lidar_recalib_bsd" none &
+		recalib \
+			"input/$model/$year/{}/lidar" \
+			"data/$model/samples/$year/{}/lidar_recalib_bsd" \
+			none &
 	done
 	wait
 	;;
 
 recalib_merra2)
-	recalib data/merra2/samples/{}/lidar data/merra2/samples/{}/lidar_recalib_bsd none
+	recalib \
+		data/merra2/samples/{}/lidar \
+		data/merra2/samples/{}/lidar_recalib_bsd \
+		none
 	;;
 
 recalib_era5)
-	recalib data/era5/samples/{}/lidar data/era5/samples/{}/lidar_recalib_bsd none
+	recalib \
+		data/era5/samples/{}/lidar \
+		data/era5/samples/{}/lidar_recalib_bsd \
+		none
 	;;
 
 alcf_ceres_obs)
 	for src in $(cat input/obs/sources/all); do
 		mkdir -p "data/obs/samples/$src/lidar_recalib_bsd"
-		parallel bin/alcf_ceres {} input/ceres/ "data/obs/samples/$src/lidar_recalib_bsd/{/}" ::: "data/obs/samples/$src/lidar_recalib_bsd/"*.nc
+		parallel \
+			bin/alcf_ceres \
+			{} \
+			input/ceres/ \
+			"data/obs/samples/$src/lidar_recalib_bsd/{/}" \
+			::: "data/obs/samples/$src/lidar_recalib_bsd/"*.nc
 	done
 	;;
 
 filter_model)
 	for year in $model_years; do
-		filter "input/$model/$year/{}/model" "data/$model/filter/40S+_noprecip_thres0.1/$year/{}.nc" &
+		filter \
+			"input/$model/$year/{}/model" \
+			"data/$model/filter/40S+_noprecip_thres0.1/$year/{}.nc" &
 	done
 	wait
 	;;
 
 filter_merra2)
-	filter data/merra2/samples/{}/model data/merra2/filter/40S+_noprecip_thres0.1/{}.nc
+	filter \
+		data/merra2/samples/{}/model \
+		data/merra2/filter/40S+_noprecip_thres0.1/{}.nc
 	;;
 
 filter_era5)
-	filter data/era5/samples/{}/model data/era5/filter/40S+_noprecip_thres0.1/{}.nc
-	;;
-
-filter_sic)
-	for year in $model_years; do
-		filter_sic "input/$model/$year/{}/model" "data/$model/filter/sic/$year/{}.nc" &
-	done
-	wait
-	;;
-
-filter_sic_merra2)
-	filter_sic data/merra2/samples/{}/model data/merra2/filter/sic/{}.nc
-	;;
-
-filter_sic_era5)
-	filter_sic data/era5/samples/{}/model data/era5/filter/sic/{}.nc
+	filter \
+		data/era5/samples/{}/model \
+		data/era5/filter/40S+_noprecip_thres0.1/{}.nc
 	;;
 
 filter_lts_merra2)
-	filter_lts stable data/merra2/samples/{}/model data/merra2/filter/lts_stable/{}.nc
-	filter_lts unstable data/merra2/samples/{}/model data/merra2/filter/lts_unstable/{}.nc
+	filter_lts stable \
+		data/merra2/samples/{}/model \
+		data/merra2/filter/lts_stable/{}.nc
+	filter_lts unstable \
+		data/merra2/samples/{}/model \
+		data/merra2/filter/lts_unstable/{}.nc
 	;;
 
 filter_lts_era5)
-	filter_lts stable data/era5/samples/{}/model data/era5/filter/lts_stable/{}.nc
-	filter_lts unstable data/era5/samples/{}/model data/era5/filter/lts_unstable/{}.nc
+	filter_lts stable \
+		data/era5/samples/{}/model \
+		data/era5/filter/lts_stable/{}.nc
+	filter_lts unstable \
+		data/era5/samples/{}/model \
+		data/era5/filter/lts_unstable/{}.nc
 	;;
 
 filter_lts_model)
 	for year in $model_years; do
-		filter_lts stable "input/$model/$year/{}/model" "data/$model/filter/lts_stable/$year/{}.nc" &
-		filter_lts unstable "input/$model/$year/{}/model" "data/$model/filter/lts_unstable/$year/{}.nc" &
+		filter_lts stable \
+			"input/$model/$year/{}/model" \
+			"data/$model/filter/lts_stable/$year/{}.nc" &
+		filter_lts unstable \
+			"input/$model/$year/{}/model" \
+			"data/$model/filter/lts_unstable/$year/{}.nc" &
 	done
 	wait
 	;;
@@ -274,7 +336,6 @@ stats_model)
 			"$prefix/samples/$year/{}/lidar_recalib_bsd" \
 			"$prefix/stats" \
 			"$filter/40S+_noprecip_thres0.1/$year" \
-			"$filter/sic/$year" \
 			"$filter/cyc/$year" \
 			"$filter/nocyc/$year" \
 			"$filter/cyc_2r/$year" \
@@ -292,7 +353,6 @@ stats_obs)
 			data/obs/samples/{}/lidar_recalib_bsd \
 			"data/$model/stats_obs" \
 			data/obs/filter/40S+_noprecip \
-			"data/$model/filter/sic/$year" \
 			data/obs/filter/cyc \
 			data/obs/filter/nocyc \
 			data/obs/filter/cyc_2r \
@@ -310,22 +370,6 @@ stats_merra2)
 
 stats_era5)
 	stats_reanalysis era5
-	;;
-
-calc_ta_sst_hist_model)
-	for x in aa nbp polarstern tangaroa; do
-		parallel bin/calc_ta_sst_co_hist "$x" data/icon_surface_alcf/{}.nc data/icon_alcf/{}/lidar data/ta_sst_co_hist/icon_alcf/{}.nc :::: "input/voyages/model/$x"
-	done
-	bin/merge_ta_sst_co_hist data/ta_sst_co_hist/icon_alcf/ data/ta_sst_co_hist_icon_alcf.nc
-	;;
-
-calc_ta_sst_hist_obs)
-	parallel bin/calc_ta_sst_co_hist generic input/polarstern/surface/{}.nc input/polarstern/cl51/alcf/{}/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/polarstern
-	parallel bin/calc_ta_sst_co_hist generic input/nz/{}/l1/surface.nc input/nz/{}/l2/*_alcf/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/tangaroa
-	parallel bin/calc_ta_sst_co_hist generic input/nz/{}/l1/surface.nc input/nz/{}/l2/*_alcf/lidar data/ta_sst_co_hist/obs/{}.nc :::: input/voyages/obs/nbp
-	bin/calc_ta_sst_co_hist generic input/aa/marcus/surface_underway.nc input/aa/marcus/alcf_ceil/lidar data/ta_sst_co_hist/obs/marcus.nc
-	parallel bin/calc_ta_sst_co_hist generic input/aa/aa15-16/l1/underway/{}.nc input/aa/aa15-16/l2/cl51_alcf/lidar data/ta_sst_co_hist/obs/aa15-16_{}.nc ::: v1 v2 v3
-	bin/merge_ta_sst_co_hist data/ta_sst_co_hist/obs/ data/ta_sst_co_hist_obs.nc
 	;;
 
 plot_cl_agg)
@@ -363,39 +407,58 @@ rs_model)
 	wait
 	;;
 
-#rs_obs)
-#	rs_rstool input/obs/rs/profiles data/obs/rs/profiles
-#	;;
-
 rs_obs)
+	# PS
 	for src in $(cat input/obs/sources/by_platform/ps); do
 		in="input/obs/rs/ps/$src"
 		out="data/obs/rs/profiles/$src"
 		mkdir -p "$out"
 		if [ -e "$in/tab_wo_header" ]; then
-			#parallel bin/rs_ps_single {} "data/obs/track/$src.nc"  "$in/summary_wo_header.tab" "$out/"{/.}.nc ::: "$in/tab_wo_header/"*.tab
-			true
+			parallel \
+				bin/rs_ps_single \
+				{} \
+				"data/obs/track/$src.nc" \
+				"$in/summary_wo_header.tab" \
+				"$out/"{/.}.nc \
+				::: "$in/tab_wo_header/"*.tab
 		elif [ -e "$in"/*_radiosonde_wo_header.tab ]; then
 			true
 		else
 			echo "$src: no radiosonde measurements found" >&2
 		fi
 	done
-	parallel '[ -e input/obs/rs/ps/{}/*_radiosonde_wo_header.tab ] && bin/rs_ps_multi input/obs/rs/ps/{}/*_radiosonde_wo_header.tab data/obs/rs/profiles/{}' :::: input/obs/sources/by_platform/ps
+	parallel \
+		'[ -e input/obs/rs/ps/{}/*_radiosonde_wo_header.tab ] && bin/rs_ps_multi input/obs/rs/ps/{}/*_radiosonde_wo_header.tab data/obs/rs/profiles/{}' \
+		:::: input/obs/sources/by_platform/ps
 	for src in $(cat input/obs/sources/by_platform/ps); do
-		parallel rstool prof prof {} "input/obs/surf/ps/$src.nc" {} ::: "data/obs/rs/profiles/$src"/*.nc
+		parallel \
+			rstool prof prof {} "input/obs/surf/ps/$src.nc" {} \
+			::: "data/obs/rs/profiles/$src"/*.nc
 	done
+
+	# TAN1702, TAN1802, and NBP1704
 	declare -A input_type
 	input_type[TAN1702]=imet
 	input_type[TAN1802]=imet
 	input_type[NBP1704]=prof
 	for src in TAN1702 TAN1802 NBP1704; do
 		mkdir -p "data/obs/rs/profiles/$src"
-		parallel rstool "${input_type[$src]}" prof {} "input/obs/surf/$src.nc" "data/obs/rs/profiles/$src/"{/.}.nc ::: "input/obs/rs/$src/"*
+		parallel \
+			rstool "${input_type[$src]}" prof \
+			{} \
+			"input/obs/surf/$src.nc" \
+			"data/obs/rs/profiles/$src/"{/.}.nc \
+			::: "input/obs/rs/$src/"*
 	done
+
+	# MARCUS
 	mkdir -p data/obs/rs/profiles/MARCUS
-	parallel bin/rs_marcus {} data/obs/rs/profiles/MARCUS/{/} ::: input/obs/rs/MARCUS/*.nc
-	parallel rstool prof prof {} input/obs/surf/MARCUS.nc {} ::: data/obs/rs/profiles/MARCUS/*.nc
+	parallel \
+		bin/rs_marcus {} data/obs/rs/profiles/MARCUS/{/} \
+		::: input/obs/rs/MARCUS/*.nc
+	parallel \
+		rstool prof prof {} input/obs/surf/MARCUS.nc {} \
+		::: data/obs/rs/profiles/MARCUS/*.nc
 	;;
 
 rs_merra2)
@@ -414,7 +477,11 @@ rs_stats_obs)
 
 rs_stats_model)
 	for year in $model_years; do
-		rs_stats "data/$model/rs/profiles/$year" "data/$model/filter" "data/$model/rs/stats" "$year" &
+		rs_stats \
+			"data/$model/rs/profiles/$year" \
+			"data/$model/filter" \
+			"data/$model/rs/stats" \
+			"$year" &
 	done
 	wait
 	;;
@@ -465,16 +532,34 @@ plot_map)
 calc_cyc_dist)
 	mkdir -p data/cyc/dist/era5
 	mkdir -p data/cyc/dist/icon_cy3
-	parallel bin/calc_cyc_dist data/cyc/cytrack/era5.nc {} {} data/era5/cyc_dist/{}.nc ::: {2010..2013}
-	parallel bin/calc_cyc_dist data/cyc/cytrack/icon_cy3.nc {} {} data/icon_cy3/cyc_dist/{}.nc ::: {2021..2024}
+	parallel \
+		bin/calc_cyc_dist \
+		data/cyc/cytrack/era5.nc \
+		{} {} \
+		data/era5/cyc_dist/{}.nc \
+		::: {2010..2013}
+	parallel \
+		bin/calc_cyc_dist \
+		data/cyc/cytrack/icon_cy3.nc \
+		{} {} \
+		data/icon_cy3/cyc_dist/{}.nc \
+		::: {2021..2024}
 	;;
 
 plot_cyc_dist)
 	mkdir -p plot/cyc_dist
-	bin/plot_cyc_dist data/era5/cyc_dist/201[0123].nc plot/cyc_dist/era5_2010-2013.pdf
-	bin/plot_cyc_dist data/era5/cyc_dist/201[0123].nc plot/cyc_dist/era5_2010-2013.png
-	bin/plot_cyc_dist data/icon_cy3/cyc_dist/202[1234].nc plot/cyc_dist/icon_cy3_2021-2024.pdf
-	bin/plot_cyc_dist data/icon_cy3/cyc_dist/202[1234].nc plot/cyc_dist/icon_cy3_2021-2024.png
+	bin/plot_cyc_dist \
+		data/era5/cyc_dist/201[0123].nc \
+		plot/cyc_dist/era5_2010-2013.pdf
+	bin/plot_cyc_dist \
+		data/era5/cyc_dist/201[0123].nc \
+		plot/cyc_dist/era5_2010-2013.png
+	bin/plot_cyc_dist \
+		data/icon_cy3/cyc_dist/202[1234].nc \
+		plot/cyc_dist/icon_cy3_2021-2024.pdf
+	bin/plot_cyc_dist \
+		data/icon_cy3/cyc_dist/202[1234].nc \
+		plot/cyc_dist/icon_cy3_2021-2024.png
 	;;
 
 *)
