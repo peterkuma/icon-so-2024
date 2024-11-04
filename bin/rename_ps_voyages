@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-'''Rename files or directories from RV Polarstern voyage names from ANT-* to PS*.
+'''Rename files/directories of RV Polarstern voyage names in DIR from ANT-* to PS*.
 
 Usage: bin/rename_ps_voyages DIR
 
