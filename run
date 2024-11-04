@@ -212,6 +212,44 @@ case "$task" in
 #	bin/point_track 2016-04-03 2018-03-14 158.940000 -54.496800 data/obs/track_hourly_40S+/mcq16-18.nc
 #	;;
 
+plot_map)
+	mkdir -p plot
+	bin/plot_map
+	;;
+
+calc_cyc_dist)
+	mkdir -p data/cyc/dist/era5
+	mkdir -p data/cyc/dist/icon_cy3
+	parallel \
+		bin/calc_cyc_dist \
+		data/cyc/cytrack/era5.nc \
+		{} {} \
+		data/era5/cyc_dist/{}.nc \
+		::: {2010..2013}
+	parallel \
+		bin/calc_cyc_dist \
+		data/cyc/cytrack/icon_cy3.nc \
+		{} {} \
+		data/icon_cy3/cyc_dist/{}.nc \
+		::: {2021..2024}
+	;;
+
+plot_cyc_dist)
+	mkdir -p plot/cyc_dist
+	bin/plot_cyc_dist \
+		data/era5/cyc_dist/201[0123].nc \
+		plot/cyc_dist/era5_2010-2013.pdf
+	bin/plot_cyc_dist \
+		data/era5/cyc_dist/201[0123].nc \
+		plot/cyc_dist/era5_2010-2013.png
+	bin/plot_cyc_dist \
+		data/icon_cy3/cyc_dist/202[1234].nc \
+		plot/cyc_dist/icon_cy3_2021-2024.pdf
+	bin/plot_cyc_dist \
+		data/icon_cy3/cyc_dist/202[1234].nc \
+		plot/cyc_dist/icon_cy3_2021-2024.png
+	;;
+
 download_era5)
 	mkdir -p input/era5
 	parallel -t -j1 \
@@ -237,16 +275,14 @@ alcf_era5)
 recalib_obs)
 	recalib \
 		input/obs/samples/{}/lidar \
-		data/obs/samples/{}/lidar_recalib_bsd \
-		data/obs/track_hourly_40S+/{}.nc
+		data/obs/samples/{}/lidar_recalib_bsd
 	;;
 
 recalib_model)
 	for year in $model_years; do
 		recalib \
 			"input/$model/$year/{}/lidar" \
-			"data/$model/samples/$year/{}/lidar_recalib_bsd" \
-			none &
+			"data/$model/samples/$year/{}/lidar_recalib_bsd"
 	done
 	wait
 	;;
@@ -254,18 +290,16 @@ recalib_model)
 recalib_merra2)
 	recalib \
 		data/merra2/samples/{}/lidar \
-		data/merra2/samples/{}/lidar_recalib_bsd \
-		none
+		data/merra2/samples/{}/lidar_recalib_bsd
 	;;
 
 recalib_era5)
 	recalib \
 		data/era5/samples/{}/lidar \
-		data/era5/samples/{}/lidar_recalib_bsd \
-		none
+		data/era5/samples/{}/lidar_recalib_bsd
 	;;
 
-alcf_ceres_obs)
+alcf_ceres)
 	for src in $(cat input/obs/sources/all); do
 		mkdir -p "data/obs/samples/$src/lidar_recalib_bsd"
 		parallel \
@@ -298,6 +332,18 @@ filter_era5)
 		data/era5/filter/40S+_noprecip_thres0.1/{}.nc
 	;;
 
+filter_lts_model)
+	for year in $model_years; do
+		filter_lts stable \
+			"input/$model/$year/{}/model" \
+			"data/$model/filter/lts_stable/$year/{}.nc" &
+		filter_lts unstable \
+			"input/$model/$year/{}/model" \
+			"data/$model/filter/lts_unstable/$year/{}.nc" &
+	done
+	wait
+	;;
+
 filter_lts_merra2)
 	filter_lts stable \
 		data/merra2/samples/{}/model \
@@ -316,14 +362,19 @@ filter_lts_era5)
 		data/era5/filter/lts_unstable/{}.nc
 	;;
 
-filter_lts_model)
+stats_obs)
 	for year in $model_years; do
-		filter_lts stable \
-			"input/$model/$year/{}/model" \
-			"data/$model/filter/lts_stable/$year/{}.nc" &
-		filter_lts unstable \
-			"input/$model/$year/{}/model" \
-			"data/$model/filter/lts_unstable/$year/{}.nc" &
+		stats_all \
+			data/obs/samples/{}/lidar_recalib_bsd \
+			"data/$model/stats_obs" \
+			data/obs/filter/40S+_noprecip \
+			data/obs/filter/cyc \
+			data/obs/filter/nocyc \
+			data/obs/filter/cyc_2r \
+			data/obs/filter/nocyc_2r \
+			data/era5/filter/lts_stable \
+			data/era5/filter/lts_unstable \
+			"$year" &
 	done
 	wait
 	;;
@@ -342,23 +393,6 @@ stats_model)
 			"$filter/nocyc_2r/$year" \
 			"$filter/lts_stable/$year" \
 			"$filter/lts_unstable/$year" \
-			"$year" &
-	done
-	wait
-	;;
-
-stats_obs)
-	for year in $model_years; do
-		stats_all \
-			data/obs/samples/{}/lidar_recalib_bsd \
-			"data/$model/stats_obs" \
-			data/obs/filter/40S+_noprecip \
-			data/obs/filter/cyc \
-			data/obs/filter/nocyc \
-			data/obs/filter/cyc_2r \
-			data/obs/filter/nocyc_2r \
-			data/era5/filter/lts_stable \
-			data/era5/filter/lts_unstable \
 			"$year" &
 	done
 	wait
@@ -396,13 +430,6 @@ plot_clt_hist)
 			"data/era5/stats/$subset" \
 			OBS ICON MERRA-2 ERA5 \
 			"plot/clt_hist/cy3_${subset}.pdf" &
-	done
-	wait
-	;;
-
-rs_model)
-	for year in $model_years; do
-		rs_rstool "input/$model/rs/$year" "data/icon_cy3/rs/profiles/$year" &
 	done
 	wait
 	;;
@@ -461,6 +488,13 @@ rs_obs)
 		::: data/obs/rs/profiles/MARCUS/*.nc
 	;;
 
+rs_model)
+	for year in $model_years; do
+		rs_rstool "input/$model/rs/$year" "data/icon_cy3/rs/profiles/$year" &
+	done
+	wait
+	;;
+
 rs_merra2)
 	rs merra2 input/merra2/samples data/merra2/rs/profiles
 	rs_rstool data/merra2/rs/profiles data/merra2/rs/profiles
@@ -494,12 +528,6 @@ rs_stats_era5)
 	rs_stats data/era5/rs/profiles data/era5/filter data/era5/rs/stats
 	;;
 
-rs_stats_all)
-	./run rs_stats_obs
-	./run rs_stats_model
-	./run rs_stats_merra2
-	;;
-
 plot_rs_agg)
 	for subset in \
 		40S+ \
@@ -522,44 +550,6 @@ plot_rs_agg)
 				"plot/rs_agg/$type_/$subset.pdf"
 		done
 	done
-	;;
-
-plot_map)
-	mkdir -p plot
-	bin/plot_map
-	;;
-
-calc_cyc_dist)
-	mkdir -p data/cyc/dist/era5
-	mkdir -p data/cyc/dist/icon_cy3
-	parallel \
-		bin/calc_cyc_dist \
-		data/cyc/cytrack/era5.nc \
-		{} {} \
-		data/era5/cyc_dist/{}.nc \
-		::: {2010..2013}
-	parallel \
-		bin/calc_cyc_dist \
-		data/cyc/cytrack/icon_cy3.nc \
-		{} {} \
-		data/icon_cy3/cyc_dist/{}.nc \
-		::: {2021..2024}
-	;;
-
-plot_cyc_dist)
-	mkdir -p plot/cyc_dist
-	bin/plot_cyc_dist \
-		data/era5/cyc_dist/201[0123].nc \
-		plot/cyc_dist/era5_2010-2013.pdf
-	bin/plot_cyc_dist \
-		data/era5/cyc_dist/201[0123].nc \
-		plot/cyc_dist/era5_2010-2013.png
-	bin/plot_cyc_dist \
-		data/icon_cy3/cyc_dist/202[1234].nc \
-		plot/cyc_dist/icon_cy3_2021-2024.pdf
-	bin/plot_cyc_dist \
-		data/icon_cy3/cyc_dist/202[1234].nc \
-		plot/cyc_dist/icon_cy3_2021-2024.png
 	;;
 
 *)
