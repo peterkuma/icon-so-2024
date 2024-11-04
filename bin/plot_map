@@ -36,7 +36,7 @@ map(
         'data/obs/track_hourly_40S+/PS96.nc',
         'data/obs/track_hourly_40S+/PS97.nc'
     ),
-    output='plot/map/map.pdf',
+    output='plot/map.pdf',
     col=c(
         '#ba00ff',
         '#ba00ff',
@@ -94,7 +94,6 @@ map(
         'Macquarie Is.'
     ),
     points.col=c(
-        # 'orange'
         '#ff6600'
     ),
     geo.labels=c(
@@ -128,10 +127,4 @@ map(
         c(-176.5000000, -44.00000000)
     ),
     regions=list()
-    #regions=list(
-    #    list('A', cbind(c(160, 195), c(-80, -70))),
-    #    list('B', cbind(c(160, 195), c(-70, -60))),
-    #    list('C', cbind(c(160, 195), c(-60, -50))),
-    #    list('D', cbind(c(120, 60), c(-65, -60)))
-    #)
 )
