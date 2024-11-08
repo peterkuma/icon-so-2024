@@ -81,64 +81,64 @@ pip3 install -r requirements.txt
 This also activates the environment for the current session. After finishing
 working with the code, the environment can be deactivated with `deactivate`.
 
-# Commands
+## Commands
 
 The following command are run as `./run` *cmd*, where *cmd* is the command
 name. "Model" below means ICON, and *model* is `icon_cy3`.
 
-## plot_map
+### plot_map
 
 Plot map of voyages and stations (Figure 1). The output is saved in
 `plot/map.pdf`. Requires NetCDF tracks under `data/obs/track_hourly_40S+`.
 Configuration of the plotting is directly in the file `bin/plot_map`.
 
-## calc_cyc_dist_model
+### calc_cyc_dist_model
 
 Calculate the distribution of cyclonic conditions in ICON (2021-2024).
 
-## calc_cyc_dist_era5
+### calc_cyc_dist_era5
 
 The same as `calc_cyc_dist_model`, but for ERA5 (2010-2013).
 
-## remap_lts_era5
+### remap_lts_era5
 
 Remap ERA5 LTS input data to a 1x1 degree grid.
 
-## calc_lts_dist_model
+### calc_lts_dist_model
 
 Calculate LTS distribution in ICON (2021-2024).
 
-## calc_lts_dist_era5
+### calc_lts_dist_era5
 
 Requires: `remap_lts_era5`
 
 The same as `calc_lts_dist_model`, but for ERA5 (2010-2013).
 
-## plot_cyc_dist_model
+### plot_cyc_dist_model
 
 Requires: `calc_cyc_dist_model`
 
 Plot the distribution of cyclonic conditions in ICON (Figure 5b).
 
-## plot_cyc_dist_era5
+### plot_cyc_dist_era5
 
 Requires: `calc_cyc_dist_era5`
 
 The same as `plot_cyc_dist_model`, but for ERA5 (Figure 5a).
 
-## plot_stab_dist_model
+### plot_stab_dist_model
 
 Requires: `calc_lts_dist_model`
 
 Plot stability distribution in ICON (Figure 5d).
 
-## plot_stab_dist_era5
+### plot_stab_dist_era5
 
 Requires: `calc_lts_dist_era5`
 
 The same as `plot_stab_dist_model`, but for ERA5 (Figure 5c).
 
-## download_era5
+### download_era5
 
 Download ERA5 data for the voyage tracks and stations
 (`data/obs/track_hourly_40S+`). The results are stored in `input/era5`.  This
@@ -146,7 +146,7 @@ step is not needed if you have downloaded the full accompanying data.  This
 command requires `alcf download era5 --login` to be run first to log in to the
 data distribution service.
 
-## download_merra2
+### download_merra2
 
 Download MERRA-2 data for the voyage tracks and stations
 (`data/obs/track_hourly_40S+`). The results are stored in `input/merra2`.  This
@@ -154,133 +154,133 @@ step is not needed if you have downloaded the full accompanying data.  This
 command requires `alcf download merra2 --login` to be run first to log in to
 the data distribution service.
 
-## alcf_merra2
+### alcf_merra2
 
 Run ALCF on the MERRA-2 input data under `input/merra2` to produce simulated
 backscatter. The output is stored under `data/merra2/samples`.
 
-## alcf_era5
+### alcf_era5
 
 Run ALCF on the ERA5 input data under `input/era5` to produce simulated
 backscatter. The output is stored under `data/era5/samples`.
 
-## recalib_obs
+### recalib_obs
 
 Recalibrate observations. This changes the cloud threshold and assumed
 backscatter noise standard deviation. The output is stored under
 `data/obs/samples/*/lidar_recalib_bsd`.
 
-## recalib_model
+### recalib_model
 
 The same as `recalib_obs`, but for ICON. The output is stored under
 `data/`*model*`/samples`.
 
-## recalib_merra2
+### recalib_merra2
 
 The same as `recalib_obs`, but for MERRA-2. The output is stored under
 `data/merra2/samples`.
 
-## recalib_era5
+### recalib_era5
 
 The same as `recalib_obs`, but for ERA5. The output is stored under
 `data/era5/samples`.
 
-## alcf_ceres
+### alcf_ceres
 
 Augment the ALCF output for observations with radiation data from CERES.
 
-## filter_model
+### filter_model
 
 Create a filter for model precipitation and latitude 40°+S.
 
-## filter_merra2
+### filter_merra2
 
 The same as `filter_model`, but for MERRA-2.
 
-## filter_era5
+### filter_era5
 
 The same as `filter_model`, but for ERA5.
 
-## filter_lts_model
+### filter_lts_model
 
 Create a filter for model LTS.
 
-## filter_lts_merra2
+### filter_lts_merra2
 
 The same as `filter_lts_model`, but for MERRA-2.
 
-## filter_lts_era5
+### filter_lts_era5
 
 The same as `filter_lts_model`, but for ERA5.
 
-## stats_obs
+### stats_obs
 
 Calculate statistics for observations.
 
-## stats_model
+### stats_model
 
 Calculate statistics for the model.
 
-## stats_merra2
+### stats_merra2
 
 Calculate statistics for MERRA-2.
 
-## stats_era5
+### stats_era5
 
 Calculate statistics for ERA5.
 
-## plot_cl_agg
+### plot_cl_agg
 
 Plot aggregated cloud occurrence (Figure 7). The output is stored under
 `plot/cl_agg`.
 
-## plot_clt_hist
+### plot_clt_hist
 
 Plot total cloud fraction histogram (Figure 8). The output is stored under
 `plot/clt_hist`.
 
-## rs_obs
+### rs_obs
 
 Process radiosonde observations.
 
-## rs_model
+### rs_model
 
 Process virtual radiosonde profiles for the model.
 
-## rs_merra2
+### rs_merra2
 
 The same as `rs_model`, but for MERRA-2.
 
-## rs_era5
+### rs_era5
 
 The same as `rs_model`, but for ERA5.
 
-## rs_stats_obs
+### rs_stats_obs
 
 Calculate radiosonde statistics for observations.
 
-## rs_stats_model
+### rs_stats_model
 
 The same as `rs_stats_obs`, but for the model.
 
-## rs_stats_merra2
+### rs_stats_merra2
 
 The same as `rs_stats_obs`, but for MERRA-2.
 
-## rs_stats_era5
+### rs_stats_era5
 
 The same as `rs_stats_obs`, but for ERA5.
 
-## plot_rs_agg
+### plot_rs_agg
 
 Plot aggregated radiosonde statistics. The output is stored in `plot/rs_agg`.
 
-# Miscellaneous commands
+## Miscellaneous commands
 
 The following commands are not strictly neccessary for the data processing and
 plotting, but are included nonetheless for completeness.
 
-## era5_is_broken
+### era5_is_broken
 
 Determine if an ERA5 data file is broken. If a variable is found to be invalid,
 print the file and variable name and exit with 1.
@@ -291,7 +291,7 @@ Arguments:
 
 - *input*: Input file (NetCDF).
 
-## rename_ps_voyages
+### rename_ps_voyages
 
 Rename files/directories of RV Polarstern voyage names in *dir* from ANT-* to
 PS*.
