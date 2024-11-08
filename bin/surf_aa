@@ -16,6 +16,19 @@ import aquarius_time as aq
 import logging
 import datetime as dt
 
+VARS = [
+	'LATITUDE',
+	'LONGITUDE',
+	'LATITUDE_DEGNORTH',
+	'LONGITUDE_DEGEAST',
+	'DATE_TIME_UTC',
+	'TIMESTAMP_GPS_UTC',
+	'DATETIMEUTC',
+	'TEMP_AIR_PORT_DEGC',
+	'TEMP_AIR_STRBRD_DEGC',
+	'TEMP_SEA_WTR_DEGC',
+]
+
 if __name__ == '__main__':
 	if len(sys.argv) < 3:
 		sys.stderr.write(sys.modules[__name__].__doc__)
@@ -23,7 +36,7 @@ if __name__ == '__main__':
 	input_ = sys.argv[1:-1]
 	output = sys.argv[-1]
 
-	dd = [ds.read(filename) for filename in input_]
+	dd = [ds.read(filename, VARS) for filename in input_]
 
 	d = ds.merge(dd, 'i')
 

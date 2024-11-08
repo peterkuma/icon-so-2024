@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+'''Convert RV Tangaroa surface data from DAS to a unified surface file.
+
+Usage: surf_tan OUTPUT INPUT [INPUT_CSV]
+
+Arguments: 
+
+  OUTPUT     Output file (NetCDF).
+  INPUT      Input directory (NetCDF).
+  INPUT_CSV  Input file (CSV).
+'''
+
+import os
+import sys
+import ds_format as ds
+import numpy as np
+import pandas as pd
+import numpy as np
+import aquarius_time as aq
+from rstool.algorithms import calc_esat
+
+def read_das_csv(filename):
+	d = pd.read_csv(filename)
+	utc = np.array([x.replace(' ', 'T') for x in d['utc']])
+	sst = np.array(d['AAND_SSMTW'])
+	time = aq.from_iso(utc)
+	return {
+		'time': time,
+		'ts': sst + 273.15,
+		'.': {
+			'ts': {
+				'.dims': ['time'],
+				'long_name': 'surface_temperature',
+				'units': 'K',
+			},
+			'time': {
+				'.dims': ['time'],
+				'long_name': 'time',
+				'units': 'days since -4712-01-01 12:00:00',
+			},
+		}
+	}
+
+def read_das_watertemp(dirname):
+	l = os.listdir(dirname)
+	sst = []
+	time = []
+	for x in sorted(l):
+		if not x.endswith('-watertemp-TA-SBE38-SSTW-01.thermometer'):
+			continue
+		filename = os.path.join(dirname, x)
+		d = ds.from_netcdf(filename)
+		sst.append(d['watertemp'])
+		time.append(d['time'])
+
+	if len(sst) == 0:
+		return None
+
+	return {
+		'ts': np.hstack(sst) + 273.15,
+		'time': np.hstack(time) + 2415018.5,
+		'.': {
+			'ts': {
+				'.dims': ['time'],
+				'long_name': 'surface_temperature',
+				'units': 'K',
+			},
+			'time': {
+				'.dims': ['time'],
+				'long_name': 'time',
+				'units': 'days since -4712-01-01 12:00:00',
+			},
+		}
+	}
+
+def read_das_weather(dirname):
+	l = os.listdir(dirname)
+	temp = []
+	dew_point = []
+	pressure = []
+	wind_speed = []
+	wind_direction = []
+	time = []
+	sst = []
+	for x in sorted(l):
+		if not x.endswith('-weather-TA-METAWS-01.met'):
+			continue
+		filename = os.path.join(dirname, x)
+		d = ds.from_netcdf(filename)
+		temp.append(d['airtemp'])
+		dew_point.append(d['dewpoint'])
+		pressure.append(d['airpressure'])
+		wind_speed.append(d['trueairspeed']*0.5144)
+		wind_direction.append(d['trueairheading'])
+		if 'watertemp' in d:
+			sst.append(d['watertemp'])
+		time.append(d['time'])
+	d = {
+		'tas': np.hstack(temp) + 273.15,
+		'hurs': 100*calc_esat(ta=(np.hstack(dew_point) + 273.15))/calc_esat(ta=(np.hstack(temp) + 273.15)),
+		'ps': np.hstack(pressure)*1e2,
+		'wds': np.hstack(wind_speed),
+		'wdd': np.hstack(wind_direction),
+		'time': np.hstack(time) + 2415018.5,
+		'.': {
+			'tas': {
+				'.dims': ['time'],
+				'long_name': 'near-surface_air_temperature',
+				'units': 'K',
+			},
+			'hurs': {
+				'.dims': ['time'],
+				'long_name': 'relative_humidity',
+				'units': '%',
+			},
+			'ps': {
+				'.dims': ['time'],
+				'long_name': 'surface_air_pressure',
+				'units': 'Pa'
+			},
+			'wds': {
+				'.dims': ['time'],
+				'long_name': 'wind_speed',
+				'units': 'm s-1',
+			},
+			'wdd': {
+				'.dims': ['time'],
+				'long_name': 'wind_from_direction',
+				'units': 'degrees',
+			},
+			'ts': {
+				'.dims': ['time'],
+				'long_name': 'surface_temperature',
+				'units': 'K',
+			},
+			'time': {
+				'.dims': ['time'],
+				'long_name': 'time',
+				'units': 'days since -4712-01-01 12:00:00',
+			},
+		},
+	}
+	if len(sst) != 0:
+		d['ts'] = np.hstack(sst) + 273.15
+	return d
+
+def read_das_position(dirname):
+	l = os.listdir(dirname)
+	lon = []
+	lat = []
+	time = []
+	for x in sorted(l):
+		if not x.endswith('-position-TA-GP500-01.gps'):
+			continue
+		filename = os.path.join(dirname, x)
+		d = ds.from_netcdf(filename)
+		lon.append(d['long'])
+		lat.append(d['lat'])
+		time.append(d['time'])
+	return {
+		'lon': np.hstack(lon),
+		'lat': np.hstack(lat),
+		'time': np.hstack(time) + 2415018.5,
+		'.': {
+			'lon': {
+				'.dims': ['time'],
+				'long_name': 'longitutde',
+				'units': 'degrees_east',
+			},
+			'lat': {
+				'.dims': ['time'],
+				'long_name': 'latitude',
+				'units': 'degrees_north',
+			},
+			'time': {
+				'.dims': ['time'],
+				'long_name': 'time',
+				'units': 'days since -4712-01-01 12:00:00',
+			},
+		}
+	}
+
+
+def read_das(dirname, csv_filename):
+	weather = read_das_weather(dirname)
+	watertemp = read_das_watertemp(dirname)
+	position = read_das_position(dirname)
+
+	if csv_filename is not None:
+		csv = read_das_csv(csv_filename)
+	else:
+		csv = None
+
+	if watertemp is not None:
+		weather['ts'] = np.interp(
+			weather['time'],
+			watertemp['time'],
+			watertemp['ts'],
+			left=np.nan,
+			right=np.nan,
+		)
+		weather['.']['ts'] = watertemp['.']['ts']
+
+	if np.max(np.abs(weather['ts'])) == 0.0 and csv is not None:
+		weather['ts'] = np.interp(
+			weather['time'],
+			csv['time'],
+			csv['ts'],
+			left=np.nan,
+			right=np.nan,
+		)
+		weather['.']['ts'] = csv['.']['ts']
+
+	weather['lon'] = np.interp(
+		weather['time'],
+		position['time'],
+		position['lon'],
+		left=np.nan,
+		right=np.nan,
+	)
+	weather['lat'] = np.interp(
+		weather['time'],
+		position['time'],
+		position['lat'],
+		left=np.nan,
+		right=np.nan,
+	)
+	weather['.']['lon'] = position['.']['lon']
+	weather['.']['lat'] = position['.']['lat']
+	mask = ~(np.isnan(weather['lon']) & np.isnan(weather['lat']))
+	ds.select(weather, { 'time': mask })
+	return weather
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (3, 4):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	output_filename = sys.argv[1]
+	input_dirname = sys.argv[2]
+
+	if len(sys.argv) == 4:
+		input_csv_filename = sys.argv[3]
+	else:
+		input_csv_filename = None
+
+	d = read_das(input_dirname, input_csv_filename)
+	ds.to_netcdf(output_filename, d)

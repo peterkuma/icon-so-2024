@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-echo 'threshold,precip_frac'
-for i in $(seq 0.005 0.005 0.5); do
-	echo -n "$i,"
-	bin/alcf_filter data/icon_alcf_cy3/polarstern/"$1"/model "$i" input/polarstern/metcont/track_2021/"$1".nc -40 data/icon_alcf_cy3/polarstern/filter_40S+_noprecip/"$1".nc
-done

@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+'''Determine if an ERA5 data file is broken. If a variable is found to be invalid, print the file and variable name and exit with 1.
+
+Usage: era5_is_broken INPUT
+
+Arguments:
+
+  INPUT  Input file (NetCDF).
+'''
 
 import sys
 import os
