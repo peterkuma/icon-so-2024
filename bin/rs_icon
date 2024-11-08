@@ -14,7 +14,7 @@ CATALOG = 'https://data.nextgems-h2020.eu/catalog.yaml'
 TIME = 'PT3H'
 ZOOM = 10
 
-VARS = ['ta', 'zg', 'ua', 'va', 'ts', 'hus', 'pfull', 'pres_sfc', 'sic']
+VARS = ['ta', 'tas', 'zg', 'ua', 'va', 'ts', 'hus', 'pfull', 'pres_sfc', 'sic']
 
 VAR_TRANS = {
 	'pfull': 'p',
@@ -22,6 +22,16 @@ VAR_TRANS = {
 }
 
 META = {
+	'lon': {
+		'.dims': ['p'],
+		'standard_name': 'longitude',
+		'units': 'degree_east',
+	},
+	'lat': {
+		'.dims': ['p'],
+		'standard_name': 'latitude',
+		'units': 'degree_north',
+	},
 	'p': {
 		'.dims': ['p'],
 		'standard_name': 'air_pressure',
@@ -42,6 +52,11 @@ META = {
 		'standard_name': 'specific_humidity',
 		'units': '1',
 	},
+	'huss': {
+		'.dims': [],
+		'standard_name': 'specific_humidity',
+		'units': '1',
+	},
 	'ua': {
 		'.dims': ['p'],
 		'standard_name': 'eastward_wind',
@@ -57,6 +72,11 @@ META = {
 		'standard_name': 'geopotential_height',
 		'units': 'm',
 	},
+	'tas': {
+		'.dims': [],
+		'standard_name': 'air_temperature',
+		'units': 'K',
+	},
 	'ts': {
 		'.dims': [],
 		'standard_name': 'surface_temperature',
@@ -68,6 +88,17 @@ META = {
 		'units': 'days since -4713-11-24 12:00 UTC',
 		'calendar': 'proleptic_gregorian',
 	},
+	'lat': {
+		'.dims': ['p'],
+		'standard_name': 'latitude',
+		'units': 'degree_north',
+	},
+	'lon': {
+		'.dims': ['p'],
+		'standard_name': 'longitude',
+		'units': 'degree_east',
+	},
+
 	'sic': {
 		'.dims': [],
 		'standard_name': 'sea_ice_area_fraction',
@@ -133,6 +164,12 @@ def read(ids, time, t, lon, lat, year=None):
 		if x.ndim == 1:
 			x = x[::-1]
 		d[new_var] = x
+
+	for var in ds.vars(d):
+		if d[var].ndim == 1:
+			d[var] = [np.nan] + list(d[var])
+	
+	d['huss'] = d['hus'][0]
 
 	n = len(d['p'])
 	d['time'] = np.full(n, t)
