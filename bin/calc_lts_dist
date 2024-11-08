@@ -17,10 +17,11 @@ import scipy
 import numpy as np
 import ds_format as ds
 
-p0 = 1e5
-rd = 287.058
-cp = 1006
-kappa = rd/cp
+p0 = 1e5 # Standard surface pressure (Pa).
+rd = 287.058 # Gas constant for dry air (J.kg-1.K-1).
+cp = 1006 # Specific heat capacity of dry air at constant pressure at
+          # temperature 273 K (J.kg-1.K-1).
+kappa = rd/cp # Poisson constant for dry air at temperature 273 K (1).
 
 def calc_lts(ps, tas, p700, ta700):
 	theta700 = ta700*(p0/p700)**kappa
