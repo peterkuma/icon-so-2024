@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+'''Extract surface data from ICON along a voyage track.
+
+Usage: icon_surface TRACK INPUT OUTPUT
+
+Arguments:
+
+  TRACK   Track (NetCDF).
+  INPUT   Input directory (NetCDF).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import os
+import numpy as np
+import ds_format as ds
+import aquarius_time as aq
+from alcf import misc
+
+MAX_TIME_DIFF = 6/24 # days.
+STEP = 0.5/24
+
+if __name__ == '__main__':
+	if len(sys.argv) != 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	track = sys.argv[1]
+	input_ = sys.argv[2]
+	output = sys.argv[3]
+	
+	d_track = ds.read(track)
+
+	print('<- %s' % input_)
+	dd_idx = ds.readdir(input_, 'time',
+		jd=True,
+		full=True,
+		parallel=True,
+	)
+
+	filename = os.path.join(input_, 'vgrid.nc')
+	print('<- %s' % filename)
+	d_g = ds.read(filename, ['clon', 'clat'], full=True)
+	d_g['clon'] *= 180/np.pi
+	d_g['clat'] *= 180/np.pi
+
+	start_time = d_track['time'][0]
+	end_time = d_track['time'][-1]
+	vgrid_filename = os.path.join(input_, 'vgrid.nc')
+	ncells = ds.dim(d_g, 'ncells')
+	d_out = {}
+	
+	for var in ['tas', 'ts', 'ta']:
+		dd = []
+		do_break = 0
+		for d_idx in dd_idx:
+			if var not in d_idx['.']:
+				continue
+			if do_break >= 2:
+				break
+			time = d_idx['time']
+			filename = d_idx['filename']
+			ii = np.nonzero(
+				(time >= start_time) &
+				(time < end_time)
+			)[0]
+			for i in ii:
+				lon0, lat0 = misc.track_at(d_track, time[i])
+				dist = misc.geo_distance(
+					np.full(ncells, lon0),
+					np.full(ncells, lat0),
+					d_g['clon'],
+					d_g['clat'],
+					method='gc'
+				)
+				cell = np.argmin(dist)
+
+				if var == 'ta':
+					print('<- %s' % vgrid_filename)
+					d_g2 = ds.read(vgrid_filename, 'zg', sel={
+						'ncells': cell,
+						'height': ds.dim(d_g, 'height') - 1,
+					})
+
+				print('<- %s' % filename)
+				d = ds.read(filename, var,
+					sel={
+						'time': [i],
+						'ncells': cell,
+					},
+					jd=True,
+				)
+				d['time'] = np.array([time[i]])
+				d['lat'] = np.array([d_g['clat'][cell]])
+				d['lon'] = np.array([d_g['clon'][cell]])
+				if var == 'ta':
+					print(d['ta'].shape)
+					ds.rename_dim(d, 'height', 'level')
+					# Geometrical height approximately equal to geopotential height.
+					d['zfull'] = d_g2['zg'][::-1]
+					d['zfull'] = d['zfull'].reshape((1, len(d['zfull'])))
+					ds.dims(d, 'zfull', ['time', 'level'])
+				if var == 'tas':
+					d['tas'] = d['tas'][:,0]
+					d['.']['tas']['.dims'] = ['time']
+				ds.dims(d, 'time', ['time'])
+				ds.dims(d, 'lat', ['time'])
+				ds.dims(d, 'lon', ['time'])
+				if d[var].ndim == 2:
+					d[var] = d[var][:,::-1]
+				dd.append(d)
+				do_break += 1
+		d = ds.op.merge(dd, 'time')
+		d_out.update(d)
+
+	d_out['.'] = {
+		'time': {
+			'.dims': ['time'],
+			'standard_name': 'time',
+			'units': 'days since -4713-11-24 12:00 UTC',
+			'calendar': 'proleptic_gregorian',
+		},
+		'lat': {
+			'.dims': ['time'],
+			'standard_name': 'latitude',
+			'units': 'degrees_north',
+		},
+		'lon': {
+			'.dims': ['time'],
+			'standard_name': 'longitude',
+			'units': 'degrees_east',
+		},
+		'ta': {
+			'.dims': ['time', 'level'],
+			'standard_name': 'air_temperature',
+			'units': 'K',
+		},
+		'zfull': {
+			'.dims': ['time', 'level'],
+			'standard_name': 'geoid_height_above_reference_ellipsoid',
+			'units': 'm',
+		},
+		'tas': {
+			'.dims': ['time'],
+			'standard_name': 'air_temperature',
+			'units': 'K',
+		},
+		'ts': {
+			'.dims': ['time'],
+			'standard_name': 'sea_surface_temperature',
+			'units': 'K',
+		},
+	}
+
+	print('-> %s' % output)
+	ds.write(output, d_out)
