@@ -69,7 +69,6 @@ if __name__ == '__main__':
 				else:
 					do[var] += d1[var].T
 			n += 1
-		print(lat)
 		mod = len(lat) % 4
 		if mod != 0:
 			lat = lat[mod:]
@@ -112,32 +111,9 @@ if __name__ == '__main__':
 					do[var] = x
 				else:
 					do[var] += x
-
-			# Original ERA5:
-			#print('<- %s' % filename_surf)
-			#d_surf = ds.read(filename_surf, [], full=True)
-			#m = d_surf['.']['valid_time']['.size'][0]
-			#for i in range(m):
-			#	print('<- %s [time %d]' % (filename_surf, i))
-			#	d_surf = ds.read(filename_surf, sel={'valid_time': i})
-			#	print('<- %s [time %d]' % (filename_plev, i))
-			#	d_plev = ds.read(filename_plev, sel={'time': i})
-			#	lon = scipy.ndimage.zoom(d_surf['longitude'], 0.25)
-			#	lat = scipy.ndimage.zoom(d_surf['latitude'], 0.25)
-			#	tas = scipy.ndimage.zoom(d_surf['t2m'], 0.25)
-			#	ps = scipy.ndimage.zoom(d_surf['sp'], 0.25)
-			#	ta700 = scipy.ndimage.zoom(d_plev['t'], 0.25)
-			#	p700 = 700e2
-			#	lts = calc_lts(ps, tas, p700, ta700)
-			#	mask = lts >= thres
-			#	n += 1
-			#	if hist is None:
-			#		hist = mask.T.astype(int)
-			#	else:
-			#		hist += mask.T
 	else:
 		raise ValueError('invalid type "%s"' % type_)
-	
+
 	print('-> %s' % output)
 	ds.write(output, {
 		'n': n,
