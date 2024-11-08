@@ -5,7 +5,7 @@ Usage: extract_icon_lts DAY OUTPUT
 
 Arguments:
 
-  DAY    Day (ISO).
+  DAY     Day (ISO).
   OUTPUT  Output directory (NetCDF).
 '''
 
@@ -54,7 +54,7 @@ if __name__ == '__main__':
 	)
 	start = day
 	end = day + 1
-	ii = np.where((time >= start) & (time < end))[0]	
+	ii = np.where((time >= start) & (time < end))[0]
 
 	lon_360 = lon % 360
 	order = np.argsort(lon_360)
