@@ -14,10 +14,8 @@ Arguments:
 import sys
 import os
 import scipy
-from rstool.algorithms import calc_lts, calc_theta
 import numpy as np
 import ds_format as ds
-import aquarius_time as aq
 
 p0 = 1e5
 rd = 287.058
