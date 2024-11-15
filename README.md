@@ -81,6 +81,15 @@ pip3 install -r requirements.txt
 This also activates the environment for the current session. After finishing
 working with the code, the environment can be deactivated with `deactivate`.
 
+To run the cyclone tracking commands, download and upack version 1.0.1 of
+CyTRACK:
+
+```sh
+wget -O CyTRACK-1.0.1.tar.gz https://github.com/apalarcon/CyTRACK/archive/refs/tags/v1.0.1.tar.gz
+tar xf CyTRACK-1.0.1.tar.gz
+mv CyTRACK-1.0.1 cytrack
+```
+
 ## Commands
 
 The following command are run as `./run` *cmd*, where *cmd* is the command
@@ -332,7 +341,7 @@ with specific attribution requirements:
 - TAN1502, TAN1702, and TAN1802: National Institute of Water and Atmospheric
   Research and University of Canterbury.
 - MARCUS: Atmospheric Radiation Measurement and Australian Antarctic Division.
-- MCQ16-18: Atmospheric Radiation Measurement, the Australian Bureau of
+- MICRE: Atmospheric Radiation Measurement, the Australian Bureau of
   Meteorology, and Australian Antarctic Division.
 
 Please see the Acknowledgements and Data availability sections in the
