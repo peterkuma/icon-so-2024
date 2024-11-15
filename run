@@ -127,9 +127,9 @@ stats_all () {
 	stats "$in" "$out/40S+_$prefix/$year/{}.nc" \
 		"$filter_noprecip/{}.nc" ""
 	stats "$in" "$out/40S+_${prefix}_cyc/$year/{}.nc" \
-		"$filter_noprecip/{}.nc" "$filter_cyc/{}.nc" 
+		"$filter_noprecip/{}.nc" "$filter_cyc/{}.nc"
 	stats "$in" "$out/40S+_${prefix}_nocyc/$year/{}.nc" \
-		"$filter_noprecip/{}.nc" "$filter_nocyc/{}.nc" 
+		"$filter_noprecip/{}.nc" "$filter_nocyc/{}.nc"
 	stats "$in" "$out/40S+_${prefix}_cyc_2r/$year/{}.nc" \
 		"$filter_noprecip/{}.nc" "$filter_cyc_2r/{}.nc"
 	stats "$in" "$out/40S+_${prefix}_nocyc_2r/$year/{}.nc" \
@@ -192,17 +192,17 @@ rs_stats () {
 			"$filter/$subset/$year"/{}.nc \
 			-90 -40 \
 			"$out/40S+_$subset"/$year/{}.nc \
-			:::: input/obs/sources/rs 
-	done		
+			:::: input/obs/sources/rs
+	done
 	mkdir -p "$out/40S+/$year"
 	mkdir -p "$out/40-55S/$year"
 	mkdir -p "$out/55S+/$year"
 	parallel bin/rs_stats "$in"/{} -90 -40 "$out/40S+/$year"/{}.nc \
-		:::: input/obs/sources/rs 
+		:::: input/obs/sources/rs
 	parallel bin/rs_stats "$in"/{} -55 -40 "$out/40-55S/$year"/{}.nc \
-		:::: input/obs/sources/rs 
+		:::: input/obs/sources/rs
 	parallel bin/rs_stats "$in"/{} -90 -55 "$out/55S+/$year"/{}.nc \
-		:::: input/obs/sources/rs 
+		:::: input/obs/sources/rs
 }
 
 calc_cyc_dist () {
@@ -243,6 +243,24 @@ plot_stab_dist () {
 	for ext in pdf png; do
 		bin/plot_geo_dist stab "$in" "$out.$ext"
 	done
+}
+
+cytrack () {
+	local model="$1"
+	local year_start="$2"
+	local year_end="$3"
+	local years="$(seq "$year_start" "$year_end")"
+	for y in $years; do
+		local y1=$((y-1))
+		local y2=$((y+1))
+		sed "s/{YEAR}/$y/g;s/{BEGIN_YEAR}/$y1/g;s/{END_YEAR}/$y2/g" \
+			"config/cytrack/$model.cfg" \
+			> "config/cytrack/${model}_$y.cfg"
+	done
+	cd cytrack
+	files=$(parallel echo ../config/cytrack/${model}_{}.cfg ::: $years)
+	parallel -j 4 echo python3 run_CyTRACK.py -pf {} ::: $files
+	cd ..
 }
 
 case "$task" in
@@ -287,6 +305,16 @@ surf)
 plot_map)
 	mkdir -p plot
 	bin/plot_map
+	;;
+
+cytrack_model)
+	mkdir -p data/icon_cy3/cyc/{cytrack,tmp}
+	cytrack icon 2021 2024
+	;;
+
+cytrack_era5)
+	mkdir -p data/era5/cyc/{cytrack,tmp}
+	cytrack era5 2010 2021
 	;;
 
 calc_cyc_dist_model)
