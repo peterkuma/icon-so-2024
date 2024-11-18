@@ -253,13 +253,16 @@ cytrack () {
 	files=$(parallel echo ../config/cytrack/${model}_{}.cfg ::: $years)
 	parallel -j 4 echo python3 run_CyTRACK.py -pf {} ::: $files
 	cd ..
+	parallel \
+		bin/cytrack2nc {} {.}.nc \
+		::: data/"$model"/cyc/cytrack/*/CyTRACK_output/*.dat
 }
 
 case "$task" in
 
 surf)
 	in=input/obs/surf
-	out=data/obs/surf_
+	out=data/obs/surf
 	mkdir -p "$out"
 	bin/surf_aa "$in/AA15-16/"{v1,v2,v3_part}.csv "$out/AA15-16.nc"
 	bin/surf_marcus "$in/MARCUS/"*.csv "$out/MARCUS.nc"
@@ -289,8 +292,8 @@ surf)
 	;;
 
 track)
-	in="data/obs/surf_"
-	out="data/obs/track_hourly_40S+_"
+	in="data/obs/surf"
+	out="data/obs/track_hourly_40S+"
 	mkdir -p "$out"
 	parallel \
 		bin/track default "$in"/{}.nc "$out"/{}.nc -90 -40 \
