@@ -101,11 +101,23 @@ Plot map of voyages and stations (Figure 1). The output is saved in
 `plot/map.pdf`. Requires NetCDF tracks under `data/obs/track_hourly_40S+`.
 Configuration of the plotting is directly in the file `bin/plot_map`.
 
+### cytrack_model
+
+Calculate cyclone trajectories for ICON (2021-2024).
+
+### cytrack_era5
+
+Calculate cyclone trajectories for ERA5 (2010-2021).
+
 ### calc_cyc_dist_model
+
+Requires: `cytrack_model`
 
 Calculate the distribution of cyclonic conditions in ICON (2021-2024).
 
 ### calc_cyc_dist_era5
+
+Requires: `cytrack_era5`
 
 The same as `calc_cyc_dist_model`, but for ERA5 (2010-2013).
 
@@ -165,10 +177,14 @@ the data distribution service.
 
 ### alcf_merra2
 
+Requires: `download_merra2`
+
 Run ALCF on the MERRA-2 input data under `input/merra2` to produce simulated
 backscatter. The output is stored under `data/merra2/samples`.
 
 ### alcf_era5
+
+Requires: `download_era5`
 
 Run ALCF on the ERA5 input data under `input/era5` to produce simulated
 backscatter. The output is stored under `data/era5/samples`.
@@ -240,10 +256,14 @@ Calculate statistics for ERA5.
 
 ### plot_cl_agg
 
+Requires: `stats_obs`, `stats_model`, `stats_merra2`, `stats_era5`
+
 Plot aggregated cloud occurrence (Figure 7). The output is stored under
 `plot/cl_agg`.
 
 ### plot_clt_hist
+
+Requires: `stats_obs`, `stats_model`, `stats_merra2`, `stats_era5`
 
 Plot total cloud fraction histogram (Figure 8). The output is stored under
 `plot/clt_hist`.
@@ -266,21 +286,31 @@ The same as `rs_model`, but for ERA5.
 
 ### rs_stats_obs
 
+Requires: `rs_obs`
+
 Calculate radiosonde statistics for observations.
 
 ### rs_stats_model
+
+Requires: `rs_model`
 
 The same as `rs_stats_obs`, but for the model.
 
 ### rs_stats_merra2
 
+Requires: `rs_merra2`
+
 The same as `rs_stats_obs`, but for MERRA-2.
 
 ### rs_stats_era5
 
+Requires: `rs_era5`
+
 The same as `rs_stats_obs`, but for ERA5.
 
 ### plot_rs_agg
+
+Requires: `rs_stats_obs`, `rs_stats_model`, `rs_stats_merra2`, `rs_stats_era5`
 
 Plot aggregated radiosonde statistics. The output is stored in `plot/rs_agg`.
 
