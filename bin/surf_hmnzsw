@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+'''Convert HMNZS Wellington surface data to a unified surface file.
+
+Usage: surf_hmnzsw INPUT OUTPUT
+
+Arguments:
+
+  INPUT   Input file (mat).
+  OUTPUT  Output file (NetCDF).
+'''
+
+import sys
+import json
+import numpy as np
+import scipy.io
+import ds_format as ds
+import aquarius_time as aq
+
+def read(filename):
+	m = scipy.io.loadmat(filename)
+	time = (m['summary'][:,0] - 719529) + 2440587.5
+	lat = m['summary'][:,1]
+	lon = m['summary'][:,2]
+	order = np.argsort(time)
+	return({
+		'time': time[order],
+		'lat': lat[order],
+		'lon': lon[order],
+		'.': {
+			'time': {
+				'.dims': ['time'],
+				'standard_name': 'time',
+				'long_name': 'time',
+				'units': 'days since -4712-01-01 12:00 UTC',
+			},
+			'lat': {
+				'.dims': ['time'],
+				'standard_name': 'latitude',
+				'long_name': 'latitude',
+				'units': 'degrees_north',
+			},
+			'lon': {
+				'.dims': ['time'],
+				'standard_name': 'longitude',
+				'long_name': 'longitude',
+				'units': 'degrees_east',
+			},
+		}
+	})
+
+if __name__ == '__main__':
+	if len(sys.argv) not in (3, 4):
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1]
+	output = sys.argv[2]
+	attributes = json.load(open(sys.argv[3])) if len(sys.argv) == 4 else None
+	d = read(input_)
+	if attributes is not None:
+		d['.']['.'] = attributes
+	ds.write(output, d)

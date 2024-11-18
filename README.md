@@ -95,7 +95,19 @@ mv CyTRACK-1.0.1 cytrack
 The following command are run as `./run` *cmd*, where *cmd* is the command
 name. "Model" below means ICON, and *model* is `icon_cy3`.
 
+### surf
+
+Convert native voyage surface navigation and observations to NetCDF.
+
+### track
+
+Requires: `surf`
+
+Convert voyage and station surface data to hourly tracks south of 40°S.
+
 ### plot_map
+
+Requires: `track`
 
 Plot map of voyages and stations (Figure 1). The output is saved in
 `plot/map.pdf`. Requires NetCDF tracks under `data/obs/track_hourly_40S+`.
@@ -161,6 +173,8 @@ The same as `plot_stab_dist_model`, but for ERA5 (Figure 5c).
 
 ### download_era5
 
+Requires: `track`
+
 Download ERA5 data for the voyage tracks and stations
 (`data/obs/track_hourly_40S+`). The results are stored in `input/era5`.  This
 step is not needed if you have downloaded the full accompanying data.  This
@@ -168,6 +182,8 @@ command requires `alcf download era5 --login` to be run first to log in to the
 data distribution service.
 
 ### download_merra2
+
+Requires: `track`
 
 Download MERRA-2 data for the voyage tracks and stations
 (`data/obs/track_hourly_40S+`). The results are stored in `input/merra2`.  This
@@ -202,10 +218,14 @@ The same as `recalib_obs`, but for ICON. The output is stored under
 
 ### recalib_merra2
 
+Requires: `alcf_merra2`
+
 The same as `recalib_obs`, but for MERRA-2. The output is stored under
 `data/merra2/samples`.
 
 ### recalib_era5
+
+Requires: `alcf_era5`
 
 The same as `recalib_obs`, but for ERA5. The output is stored under
 `data/era5/samples`.
@@ -240,17 +260,25 @@ The same as `filter_lts_model`, but for ERA5.
 
 ### stats_obs
 
+Requires: `recalib_obs`
+
 Calculate statistics for observations.
 
 ### stats_model
+
+Requires: `recalib_model`, `filter_model`, `filter_lts_model`
 
 Calculate statistics for the model.
 
 ### stats_merra2
 
+Requires: `recalib_merra2`, `filter_merra2`, `filter_lts_merra2`
+
 Calculate statistics for MERRA-2.
 
 ### stats_era5
+
+Requires: `recalib_era5`, `filter_era5`, `filter_lts_era5`
 
 Calculate statistics for ERA5.
 

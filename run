@@ -257,41 +257,44 @@ cytrack () {
 
 case "$task" in
 
-#convert_track)
-#	mkdir -p data/obs/track_hourly_40S+
-#	parallel 'bin/convert_track2 default data/obs/track/{}.nc data/obs/track_hourly_40S+/{}.nc -90 -40' :::: input/obs/sources/all
-#	bin/point_track 2016-04-03 2018-03-14 158.940000 -54.496800 data/obs/track_hourly_40S+/mcq16-18.nc
-#	;;
-
 surf)
 	in=input/obs/surf
 	out=data/obs/surf_
 	mkdir -p "$out"
-	#bin/surf_aa \
-	#	"$in/AA15-16/"{v1,v2_fixed,v3_part_fixed}.csv \
-	#	"$out/AA15-16.nc"
-	#bin/surf_marcus "$in/MARCUS/"*.csv "$out/MARCUS.nc"
-	#parallel \
-	#	bin/surf_ps \
-	#	1 \
-	#	{} \
-	#	"$in/PS/thermosalinograph/tab_wo_header/{/}" \
-	#	"$out/{/.}.nc" \
-	#	::: "$in/PS/metcont/tab_wo_header/"*.tab
-	#parallel \
-	#	bin/surf_ps \
-	#	2 \
-	#	{} \
-	#	"$in/PS/thermosalinograph/tab_wo_header/{/.}.tab" \
-	#	"$out/{/.}.nc" \
-	#	::: "$in/PS/metcont_extra/"PS{124,81_8}.csv
-	#parallel \
-	#	bin/surf_tan "$out/{/}.nc" {} "$in/TAN/csv/{/}.csv" \
-	#	::: "$in/TAN/nc/"{TAN1502,TAN1802}
-	#parallel \
-	#	bin/surf_tan "$out/{/}.nc" {} \
-	#	::: "$in/TAN/nc/TAN1702"
-	#bin/surf_nbp "$in/NBP1704.mat" "$out/NBP1704.nc"
+	bin/surf_aa "$in/AA15-16/"{v1,v2,v3_part}.csv "$out/AA15-16.nc"
+	bin/surf_marcus "$in/MARCUS/"*.csv "$out/MARCUS.nc"
+	parallel \
+		bin/surf_ps \
+		1 \
+		{} \
+		"$in/PS/thermosalinograph/tab_wo_header/{/}" \
+		"$out/{/.}.nc" \
+		::: "$in/PS/metcont/tab_wo_header/"*.tab
+	parallel \
+		bin/surf_ps \
+		2 \
+		{} \
+		"$in/PS/thermosalinograph/tab_wo_header/{/.}.tab" \
+		"$out/{/.}.nc" \
+		::: "$in/PS/metcont_extra/"PS{124,81_8}.csv
+	parallel \
+		bin/surf_tan "$out/{/}.nc" {} "$in/TAN/csv/{/}.csv" \
+		::: "$in/TAN/nc/"{TAN1502,TAN1802}
+	parallel \
+		bin/surf_tan "$out/{/}.nc" {} \
+		::: "$in/TAN/nc/TAN1702"
+	bin/surf_nbp "$in/NBP1704.mat" "$out/NBP1704.nc"
+	bin/surf_hmnzsw "$in/HMNZSW16.mat" "$out/HMNZSW16.nc"
+	bin/surf_point 2016-04-03 2018-03-14 158.940000 -54.496800 "$out/MICRE.nc"
+	;;
+
+track)
+	in="data/obs/surf_"
+	out="data/obs/track_hourly_40S+_"
+	mkdir -p "$out"
+	parallel \
+		bin/track default "$in"/{}.nc "$out"/{}.nc -90 -40 \
+		:::: input/obs/sources/all
 	;;
 
 plot_map)
