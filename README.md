@@ -246,6 +246,14 @@ The same as `filter_model`, but for MERRA-2.
 
 The same as `filter_model`, but for ERA5.
 
+### filter_cyc_model
+
+Create a filter for model cyclonic activity.
+
+### filter_cyc_era5
+
+The same as `filter_cyc_model`, but for ERA5.
+
 ### filter_lts_model
 
 Create a filter for model LTS.
@@ -266,19 +274,19 @@ Calculate statistics for observations.
 
 ### stats_model
 
-Requires: `recalib_model`, `filter_model`, `filter_lts_model`
+Requires: `recalib_model`, `filter_model`, `filter_cyc_model`, `filter_lts_model`
 
 Calculate statistics for the model.
 
 ### stats_merra2
 
-Requires: `recalib_merra2`, `filter_merra2`, `filter_lts_merra2`
+Requires: `recalib_merra2`, `filter_merra2`, `filter_cyc_era5`, `filter_lts_merra2`
 
 Calculate statistics for MERRA-2.
 
 ### stats_era5
 
-Requires: `recalib_era5`, `filter_era5`, `filter_lts_era5`
+Requires: `recalib_era5`, `filter_era5`, `filter_cyc_era5`, `filter_lts_era5`
 
 Calculate statistics for ERA5.
 

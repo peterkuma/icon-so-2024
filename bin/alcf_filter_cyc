@@ -106,16 +106,16 @@ if __name__ == '__main__':
 		lat2 = d['lat'][mask1]
 		r = d['radius_ps'][mask1]
 		x = geo_distance(lon1, lat1, lon2, lat2)
-		#mask2 = x < 2*r
-		mask2 = x < r
+		mask2 = x < 2*r
+		#mask2 = x < r
 		if type_ == 'inc':
 			mask[i] = np.sum(mask2) > 0
 		elif type_ == 'exc':
 			mask[i] = np.sum(mask2) == 0
 		else:
 			raise ValueError('invalid type')
-	
-	print(np.mean(mask))
+
+	#print(np.mean(mask))
 	if np.sum(mask) > 0:
 		time_bnds = mask_to_intervals(mask, d_track['time'])
 	else:
