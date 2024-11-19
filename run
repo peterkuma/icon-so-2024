@@ -316,11 +316,11 @@ cytrack_era5)
 	;;
 
 calc_cyc_dist_model)
-	calc_cyc_dist "data/cyc/cytrack/$model.nc" "data/$model/cyc_dist_" 2021 2024
+	calc_cyc_dist "data/$model/cyc/cytrack.nc" "data/$model/cyc_dist" 2021 2024
 	;;
 
 calc_cyc_dist_era5)
-	calc_cyc_dist data/cyc/cytrack/era5.nc data/era5/cyc_dist 2010 2013
+	calc_cyc_dist data/era5/cyc/cytrack.nc data/era5/cyc_dist 2010 2013
 	;;
 
 remap_lts_era5)
@@ -337,7 +337,7 @@ calc_lts_dist_model)
 	;;
 
 calc_lts_dist_era5)
-	calc_lts_dist era5 data/era5/lts_1x1deg data/era5/lts_dist_/2010-2013.nc
+	calc_lts_dist era5 data/era5/lts_1x1deg data/era5/lts_dist/2010-2013.nc
 	;;
 
 plot_cyc_dist_model)
@@ -474,6 +474,32 @@ filter_lts_era5)
 	filter_lts unstable \
 		data/era5/samples/{}/model \
 		data/era5/filter/lts_unstable/{}.nc
+	;;
+
+filter_cyc () {
+	local type_="$1"
+	local in="$2"
+	local out="$3"
+	local y="$4"
+	mkdir -p "$out"
+	parallel bin/alcf_filter_cyc "$type_" \
+		"$in" \
+		data/obs/track_hourly_40S+/{}.nc \
+		$y \
+		"$out"{}.nc \
+		:::: input/obs/sources/all
+}
+
+filter_cyc_model)
+	for y in {2021..2024}; do
+		filter_cyc inc "data/$model/cyc/cytrack.nc" "data/$model/filter/cyc_2r/$y" "$y"
+		filter_cyc exc "data/$model/cyc/cytrack.nc" "data/$model/filter/nocyc_2/$y" "$y"
+	done
+	;;
+
+filter_cyc_era5)
+	filter_cyc inc "data/era5/cyc/cytrack.nc" "data/era5/filter/cyc_2r"
+	filter_cyc exc "data/era5/cyc/cytrack.nc" "data/era5/filter/nocyc_2r"
 	;;
 
 stats_obs)
