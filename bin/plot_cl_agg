@@ -6,7 +6,7 @@ Usage: plot_cl_agg OBS MODEL... LABEL... OUTPUT
 Arguments:
 
   OBS     Input directory with observational data output by alcf stats (NetCDF).
-  MODEL   Input directory with model data output by alcf stats (NetCDF).
+  MODEL   Input directory - the output of alcf stats (NetCDF). If subdirectories are present, they are expected to be multiple years to be aggregated.
   LABEL   Model label.
   OUTPUT  Output plot (PDF).
 '''
@@ -42,7 +42,8 @@ mpl.rc('grid', lw=0.1)
 def get_years(dirname):
 	years = [
 		x for x in os.listdir(dirname)
-		if os.path.isdir(os.path.join(dirname, x))
+		if os.path.isdir(os.path.join(dirname, x)) and \
+		not x.startswith('_')
 	]
 	return [''] if len(years) == 0 else years
 
@@ -77,7 +78,7 @@ if __name__ == '__main__':
 		for s in missing:
 			warnings.warn('source "%s" not present in "%s"' % (s, mod))
 		sources &= mod_sources
-	
+
 	x = {}
 	xm = {}
 	xh = {}
@@ -88,7 +89,7 @@ if __name__ == '__main__':
 		xm[var] = [[] for i in range(n2)]
 		xh[var] = [[] for i in range(n2)]
 		xl[var] = [[] for i in range(n2)]
-	
+
 	zfull = None
 
 	for i, source in enumerate(sources):

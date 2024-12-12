@@ -6,7 +6,7 @@ Usage: plot_rs_agg TYPE INPUT... LABEL... OUTPUT
 Arguments:
 
   TYPE    One of: "theta_hur" (potential temperature) or "lcl" (LCL).
-  INPUT   Input file - the output of rs_stats (NetCDF).
+  INPUT   Input directory - the output of rs_stats (NetCDF). If subdirectories are present, they are expected to be multiple years to be aggregated.
   LABEL   Input label.
   OUTPUT  Output file (PDF).
 '''
@@ -42,151 +42,83 @@ mpl.rc('grid', color='k')
 mpl.rc('grid', alpha=0.2)
 mpl.rc('grid', lw=0.1)
 
-#def interp(xout, x, y):
-#	np.arange(
-#	xint = np.interp(zg, x)
-#	return
+def get_years(dirname):
+	years = [
+		x for x in os.listdir(dirname)
+		if os.path.isdir(os.path.join(dirname, x)) and \
+		not x.startswith('_')
+	]
+	return [''] if len(years) == 0 else years
 
-#def calc_stats(dd):
-#	zg = np.arange(0, 10e3, 10)
-#	theta = []
-#	for d in dd:
-#		mask = ~(np.ma.getmaskarray(d['zg']) | np.ma.getmaskarray(d['theta']))
-#		theta += [np.interp(zg, d['zg'][mask], d['theta'][mask],
-#			left=np.nan, right=np.nan)]
-#	theta_m = np.nanmean(theta, axis=0)
-#	theta_m = np.ma.masked_invalid(theta_m, np.nan)
-#	theta_low = np.nanpercentile(theta, 16, axis=0)
-#	theta_low = np.ma.masked_invalid(theta_low, np.nan)
-#	theta_high = np.nanpercentile(theta, 84, axis=0)
-#	theta_high = np.ma.masked_invalid(theta_high, np.nan)
-#	theta_low2 = np.nanpercentile(theta, 2.5, axis=0)
-#	theta_low2 = np.ma.masked_invalid(theta_low2, np.nan)
-#	theta_high2 = np.nanpercentile(theta, 97.5, axis=0)
-#	theta_high2 = np.ma.masked_invalid(theta_high2, np.nan)
-#	sic = np.nanmean([d['sic'] > 0.15 for d in dd])
-#	return {
-#		'zg': zg,
-#		'theta': theta_m,
-#		'theta_low': theta_low,
-#		'theta_high': theta_high,
-#		'theta_low2': theta_low2,
-#		'theta_high2': theta_high2,
-#		'ts': np.mean([d['ts'] for d in dd]),
-#		'lcl': np.median([d['lcl'] for d in dd]),
-#		#'zg_sll': np.median([d['zg_sll'] for d in dd]),
-#		'sic': sic,
-#	}
-#
-#def plot_median_lcl(lcl, linestyle='solid', alpha=1, text=True):
-#	plt.axhline(y=lcl*1e-3, color='black', lw=0.8, linestyle=linestyle,
-#		alpha=alpha)
-#	if text:
-#		plt.text(24.5, lcl*1e-3, 'Median LCL',
-#			fontsize=8,
-#			weight='bold',
-#			verticalalignment='bottom',
-#			horizontalalignment='right',
-#		)
-#
-#def plot_median_sll(sll, linestyle='solid', alpha=1, text=True):
-#	plt.axhline(y=lcl*1e-3, color='black', lw=0.8, linestyle=linestyle,
-#		alpha=alpha)
-#	if text:
-#		plt.text(24.5, lcl*1e-3, 'Median SLL',
-#			fontsize=8,
-#			weight='bold',
-#			verticalalignment='bottom',
-#			horizontalalignment='right',
-#		)
-#
-#def plot_sll(ts, p, theta):
-#	p0 = p[0]
-#	p1 = np.interp(ts, theta, p)
-#	#plt.plot([ts - 273.15, ts - 273.15], [-p0*1e-2, -p1*1e-2], lw=1)
-#	plt.axhline(y=-p1*1e-2, color='black', lw=0.8, linestyle='dashed')
-#	plt.scatter(ts - 273.15, -p0*1e-2, s=5,
-#		clip_on=False,
-#		zorder=100,
-#		color='k'
-#	)
-#	plt.text(ts - 273.15, -p0*1e-2, 'SST',
-#		fontsize=8,
-#		weight='bold',
-#		horizontalalignment='center',
-#		verticalalignment='top',
-#	)
-#	plt.text(32, -p1*1e-2, 'SLL',
-#		fontsize=8,
-#		weight='bold',
-#		verticalalignment='bottom',
-#	)
-#
-#def plot_par(ta_par_s, z, ta, label='PAR', x=0, linestyle='solid', ylim=None):
-#	n = len(z)
-#	for i in range(n):
-#		parz = z[i]
-#		if ta_par_s[i] < ta[i]:
-#			break
-#	if ylim is not None and parz*1e-3 > ylim[1]:
-#		return
-#	plt.axhline(y=parz*1e-3, color='black', lw=0.8, linestyle=linestyle)
-#	if label is not None:
-#		plt.text(x, parz*1e-3, label,
-#			fontsize=8,
-#			weight='bold',
-#			verticalalignment='bottom',
-#			horizontalalignment='right',
-#		)
-
-def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
+def read(dirname):
 	zg = None
 	theta = []
 	hur = []
-	for file in sorted(os.listdir(dirname)):
-		if not file.endswith('.nc'):
-			continue
-		filename = os.path.join(dirname, file)
-		print('<- %s' % filename)
-		d = ds.read(filename)
-		zg = d['zg']
-		theta += [d['thetav_avg']]
-		hur += [d['hur_avg']]
-		#mask = (
-		#	~np.ma.getmaskarray(d['theta']) & ~np.isnan(d['theta']) &
-		#	~np.ma.getmaskarray(d['zg']) & ~np.isnan(d['zg'])
-		#)
-		#ds.select(d, {'p': mask})
-		#d['filename'] = filename
-		#if len(d['p']) == 0:
-		#	continue
-		#if 'ts' not in d:
-		#	print('%s: surface parameters not present, skipping' % filename,
-		#		file=sys.stderr)
-		#	continue
-		#dd += [d]
-	#dd = [d for d in dd if d['lat'][0] >= lat1 and d['lat'][0] < lat2]
-	#d_stats = calc_stats(dd)
-	#plot(d_stats, dd, title=title)
+	lcl = None
+	lcl_hist = []
+
+	years = get_years(dirname)
+	for y in years:
+		dirname2 = os.path.join(dirname, y)
+		files = sorted(os.listdir(dirname2))
+		for file in files:
+			if not file.endswith('.nc'):
+				continue
+			filename = os.path.join(dirname2, file)
+			print('<- %s' % filename)
+			d = ds.read(filename)
+			zg = d['zg']
+			theta += [d['thetav_avg']]
+			hur += [d['hur_avg']]
+			lcl = d['lcl']
+			lcl_hist += [d['lcl_hist']/np.sum(d['lcl_hist'])]
+
 	theta_m = np.mean(theta, axis=0)
 	theta_low = np.percentile(theta, 16, axis=0)
 	theta_high = np.percentile(theta, 84, axis=0)
-
 	hur_m = np.mean(hur, axis=0)
 	hur_low = np.percentile(hur, 16, axis=0)
 	hur_high = np.percentile(hur, 84, axis=0)
+	lcl_hist_avg = np.mean(lcl_hist, axis=0)
 
-	
+	return {
+		'zg': zg,
+		'theta_m': theta_m,
+		'theta_low': theta_low,
+		'theta_high': theta_high,
+		'hur_m': hur_m,
+		'hur_low': hur_low,
+		'hur_high': hur_high,
+		'lcl': lcl,
+		'lcl_hist_avg': lcl_hist_avg,
+	}
+
+def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
+	d = read(dirname)
+
 	plt.subplot(1, 2, 1)
-	plt.plot(theta_m - 273.15, zg*1e-3,
+	plt.plot(d['theta_m'] - 273.15, d['zg']*1e-3,
 		label=label,
 		color=color,
 		linestyle=linestyle,
 	)
-	plt.fill_betweenx(zg*1e-3, theta_low - 273.15, theta_high - 273.15,
+	plt.fill_betweenx(
+		d['zg']*1e-3,
+		d['theta_low'] - 273.15,
+		d['theta_high'] - 273.15,
 		color=color,
 		edgecolor='none',
-		alpha=0.2,
+		alpha=0.15,
+	)
+	plt.plot(d['theta_low'] - 273.15, d['zg']*1e-3,
+		color=color,
+		linestyle=linestyle,
+		lw=0.5,
+	)
+	plt.plot(d['theta_high'] - 273.15, d['zg']*1e-3,
+		color=color,
+		linestyle=linestyle,
+		lw=0.5,
 	)
 	plt.xlim(-10, 40)
 	plt.ylim(0, 5)
@@ -195,14 +127,24 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 	plt.legend(loc='lower right', borderaxespad=0)
 
 	plt.subplot(1, 2, 2)
-	plt.plot(hur_m, zg*1e-3,
+	plt.plot(d['hur_m'], d['zg']*1e-3,
 		color=color,
 		linestyle=linestyle,
 	)
-	plt.fill_betweenx(zg*1e-3, hur_low, hur_high,
+	plt.fill_betweenx(d['zg']*1e-3, d['hur_low'], d['hur_high'],
 		color=color,
 		edgecolor='none',
-		alpha=0.2,
+		alpha=0.15,
+	)
+	plt.plot(d['hur_low'], d['zg']*1e-3,
+		color=color,
+		linestyle=linestyle,
+		lw=0.5,
+	)
+	plt.plot(d['hur_high'], d['zg']*1e-3,
+		color=color,
+		linestyle=linestyle,
+		lw=0.5,
 	)
 	plt.xlim(25, 100)
 	plt.gca().set_xticks(np.arange(25, 125, 25))
@@ -213,37 +155,16 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 	plt.subplots_adjust(wspace=0.15)
 
 def plot_lcl(dirname, label, color='k', linestyle='solid'):
-	lcl = None
-	lcl_hist = []
-	#zg_ll = None
-	#zg_ll_hist = []
-	for file in sorted(os.listdir(dirname)):
-		if not file.endswith('.nc'):
-			continue
-		filename = os.path.join(dirname, file)
-		print('<- %s' % filename)
-		d = ds.read(filename)
-		lcl = d['lcl']
-		lcl_hist += [d['lcl_hist']/np.sum(d['lcl_hist'])]
-		#zg_ll = d['zg_ll']
-		#zg_ll_hist += [d['zg_ll_hist']/np.sum(d['zg_ll_hist'])]
-	lcl_hist_avg = np.mean(lcl_hist, axis=0)
-	#zg_ll_hist_avg = np.mean(zg_ll_hist, axis=0)
-	plt.plot(lcl_hist_avg*100, lcl*1e-3,
+	d = read(dirname)
+	plt.plot(d['lcl_hist_avg']*100, d['lcl']*1e-3,
 		label=label,
 		color=color,
 		linestyle=linestyle,
 		lw=1.3,
 	)
-	#plt.plot(zg_ll_hist_avg*100, lcl*1e-3,
-	#	color=color,
-	#	linestyle=linestyle,
-	#	lw=1.3,
-	#)
 	plt.xlim(0, 32)
 	plt.xticks(np.arange(0, 40, 10))
 	plt.ylim(0, 5)
-	#plt.gca().yaxis.set_ticklabels([])
 	plt.xlabel('LCL frequency (%)')
 	plt.ylabel('Height (km)')
 	plt.legend(loc='upper right')
@@ -252,7 +173,7 @@ if __name__ == '__main__':
 	if len(sys.argv) < 5:
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
-	type_ = sys.argv[1]	
+	type_ = sys.argv[1]
 	n = (len(sys.argv) - 3)//2
 	input_ = sys.argv[2:(2+n)]
 	labels = sys.argv[(2+n):-1]
@@ -264,11 +185,10 @@ if __name__ == '__main__':
 	if type_ == 'theta_hur':
 		plt.figure(figsize=(4, 4))
 		for i, (dirname, label) in enumerate(zip(input_, labels)):
-			plot_theta_hur(dirname, label, 
+			plot_theta_hur(dirname, label,
 				color=COLOR[i],
 				linestyle=LINESTYLE[i],
 			)
-		#plt.gca().set_box_aspect(1)
 	elif type_ == 'lcl':
 		plt.figure(figsize=(2, 4))
 		for i, (dirname, label) in enumerate(zip(input_, labels)):
@@ -278,8 +198,6 @@ if __name__ == '__main__':
 			)
 	else:
 		raise ValueError('invalid type "%s"' % type_)
-	
-	#plt.subplots_adjust(wspace=0.1)
 
 	print('-> %s' % output)
 	plt.savefig(output, bbox_inches='tight', dpi=600)

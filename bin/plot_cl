@@ -20,6 +20,7 @@ import matplotlib as mpl
 import ds_format as ds
 
 COLORS = ['k', '#0084C8', 'green', 'red']
+LINESTYLE = ['solid', 'dashed', 'dotted', 'dashdot']
 
 mpl.rc('font', family='Open Sans')
 mpl.rc('axes', linewidth=0.3)
@@ -59,7 +60,11 @@ def read_subdir(dirname):
 
 def read_input(dirname):
 	files = os.listdir(dirname)
-	subdirs = [x for x in files if os.path.isdir(os.path.join(dirname, x))]
+	subdirs = [
+		x
+		for x in files
+		if os.path.isdir(os.path.join(dirname, x)) and not x.startswith('_')
+	]
 	if len(subdirs) > 0:
 		return {
 			subdir: read_subdir(os.path.join(dirname, subdir))
@@ -68,18 +73,30 @@ def read_input(dirname):
 	else:
 		return read_subdir(dirname)
 
-def plot_dataset(var, dataset, source, label, color):
+def plot_dataset(var, dataset, source, label, color, linestyle):
 	if type(dataset) is dict:
 		for i, (sub, dd) in enumerate(dataset.items()):
 			d = [d for d in dd if d['name'] == source][0]
 			days = np.mean(d['time_total']/(24*60*60)) if i == 0 else None
-			plot(d, days=days, label=(label if i == 0 else None), lw=0.5, color=color)
+			plot(d,
+				days=days,
+				label=(label if i == 0 else None),
+				lw=1,
+				color=color,
+				linestyle=linestyle,
+			)
 	else:
 		d = [d for d in dataset if d['name'] == source][0]
 		days = np.mean(d['time_total']/(24*60*60))
-		plot(d, days=days, label=label, lw=0.8, color=color)
+		plot(d,
+			days=days,
+			label=label,
+			lw=1,
+			color=color,
+			linestyle=linestyle
+		)
 
-def plot(d, days=0, label=None, lw=1, color='k'):
+def plot(d, days=0, label=None, lw=1, color='k', linestyle='solid'):
 	x = d[var][:,0] if d[var].ndim == 2 else d[var]
 	label_s = None
 	if label is not None:
@@ -92,6 +109,7 @@ def plot(d, days=0, label=None, lw=1, color='k'):
 		color=color,
 		label=label_s,
 		lw=lw,
+		linestyle=linestyle,
 	)
 
 if __name__ == '__main__':
@@ -111,7 +129,7 @@ if __name__ == '__main__':
 	datasets = [read_input(in_) for in_ in input_]
 
 	if type(datasets[0]) is dict:
-		sources = [d['name'] for d in datasets[0].values()[0]]
+		sources = [d['name'] for d in list(datasets[0].values())[0]]
 	else:
 		sources = [d['name'] for d in datasets[0]]
 	sources = sorted(sources, key=lambda x: source_order.index(x))
@@ -127,7 +145,10 @@ if __name__ == '__main__':
 	for i, name in enumerate(sources):
 		plt.subplot(nrows, ncols, i + 1)
 		for j, dataset, label in zip(range(len(input_)), datasets, labels):
-			plot_dataset(var, dataset, name, label, color=COLORS[j])
+			plot_dataset(var, dataset, name, label,
+				color=COLORS[j],
+				linestyle=LINESTYLE[j],
+			)
 		if not (i % ncols) == 0:
 			plt.gca().set_yticklabels([])
 		if not (
@@ -148,11 +169,12 @@ if __name__ == '__main__':
 		#)
 		#plt.ylim(0, 15)
 		ymax = {
-			'cl': 5,
+			'cl': 8,
 			'cbh': 2.5,
 		}[var]
 		yticks = {
-			'cl': [0, 6, 1],
+			#'cl': [0, 6, 1],
+			'cl': [0, 10, 2],
 			'cbh': [0, 3.0, 0.5],
 		}[var]
 		plt.ylim(0, ymax)
@@ -164,14 +186,14 @@ if __name__ == '__main__':
 		#plt.gca().set_xticks(np.arange(0, 80, 20))
 		#if i == 0:
 		#	plt.legend(bbox_to_anchor=(0.3, 0.83))
-		plt.legend(bbox_to_anchor=(0.5, 0.6), handlelength=1, loc='center')
+		plt.legend(bbox_to_anchor=(1.04, 0.6), handlelength=1.5, loc='right')
 
-	plt.suptitle('Southern Ocean cloud ALC comparison',
-		y=0.905,
-		fontweight='bold',
-	)
+	#plt.suptitle('Southern Ocean cloud ALC comparison',
+	#	y=0.905,
+	#	fontweight='bold',
+	#)
 
-	plt.text(0.075, 0.5, 'Height (km)',
+	plt.text(0.095, 0.5, 'Height (km)',
 		transform=plt.gcf().transFigure,
 		ha='center',
 		rotation=90,
@@ -182,12 +204,12 @@ if __name__ == '__main__':
 		'cbh': 'Cloud base height distribution (%)',
 	}[var]
 
-	plt.text(0.5, 0.075, xlabel,
+	plt.text(0.5, 0.0935, xlabel,
 		transform=plt.gcf().transFigure,
 		ha='center',
 	)
 
-	plt.subplots_adjust(wspace=0.2, hspace=0.2)
+	plt.subplots_adjust(wspace=0.15, hspace=0.15)
 	#plt.subplots_adjust(wspace=0.2, hspace=0.1)
 
 	print('-> %s' % output)

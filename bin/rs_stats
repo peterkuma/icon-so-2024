@@ -96,7 +96,7 @@ if __name__ == '__main__':
 		print('<- %s' % filename)
 		d = ds.read(filename)
 		filters += [d['time_bnds']]
-	
+
 	if len(filters) > 0:
 		time_bnds = np.concatenate(filters)
 	else:
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
 	dd = []
 	n = 0
-	m = 0 
+	m = 0
 	for file in sorted(os.listdir(input_)):
 		n += 1
 		if not file.endswith('.nc'):
@@ -143,7 +143,7 @@ if __name__ == '__main__':
 		#		file=sys.stderr)
 		#	continue
 		dd += [d]
-	
+
 	print('%d%% skipped' % (m/n*100))
 	if m == n:
 		sys.exit(0)

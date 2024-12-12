@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 '''Plot geographical distribution.
 
-Usage: plot_geo_dist TYPE INPUT... OUTPUT
+Usage: plot_geo_dist TYPE INPUT1 [INPUT2] OUTPUT
 
 Arguments:
 
   TYPE    One of: "cyc" (cyclone), "stab" (stability), or a variable name.
-  INPUT   Input file - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
+  INPUT1  Input directory - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
+  INPUT2  Input reference directory - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
   OUTPUT  Output plot (PDF).
 '''
 
+import os
 import sys
 import numpy as np
 import matplotlib.path as mpath
@@ -19,6 +21,7 @@ import cartopy.feature as cfeature
 import cartopy.util as cutil
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from scipy.interpolate import RegularGridInterpolator
 
 mpl.rc('font', family='Open Sans')
 mpl.rc('axes', linewidth=0.3)
@@ -35,14 +38,21 @@ mpl.rc('grid', color='k')
 mpl.rc('grid', alpha=0.2)
 mpl.rc('grid', lw=0.1)
 
+LON = np.arange(0, 361, 1)
+LAT = np.arange(-80, -41, 1)
+
 LABEL = {
 	'cyc': 'Fraction of cyclonic days (%)',
-	'stab': 'Fraction of stable time steps (%)'
+	'cyc_diff': 'Difference in fraction of cyclonic days (%)',
+	'stab': 'Fraction of time steps with strong stability (%)',
+	'stab_diff': 'Difference in fraction of time steps with strong stability (%)',
 }
 
 LEVELS = {
 	'cyc': np.arange(0, 60, 5),
+	'cyc_diff': np.arange(-20, 22, 2),
 	'stab': np.arange(0, 105, 5),
+	'stab_diff': np.arange(-50, 55, 5),
 	'ps': np.arange(950, 1050, 5)*100,
 	'p700': np.arange(698, 702.5, 0.5)*100,
 	'tas': np.arange(250, 300, 5),
@@ -52,24 +62,20 @@ LEVELS = {
 
 CMAP = {
 	'cyc': 'viridis',
+	'cyc_diff': 'bwr',
 	'stab': 'bwr',
+	'stab_diff': 'bwr',
 }
 
-if __name__ == '__main__':
-	if len(sys.argv) < 4:
-		sys.stderr.write(sys.modules[__name__].__doc__)
-		sys.exit(1)
-
-	type_ = sys.argv[1]
-	input_ = sys.argv[2:-1]
-	output = sys.argv[-1]
-
+def read(dirname):
 	lon = None
 	lat = None
 	z = None
 	n = None
-
-	for filename in input_:
+	for file in os.listdir(dirname):
+		if not file.endswith('.nc'):
+			continue
+		filename = os.path.join(dirname, file)
 		d = ds.read(filename)
 		z1 = d['hist'] if type_ in ['cyc', 'stab'] else d[type_]
 		if z is None:
@@ -80,6 +86,30 @@ if __name__ == '__main__':
 			n += d['n']
 		lon = d['lon']
 		lat = d['lat']
+	return {
+		'lon': lon,
+		'lat': lat,
+		'z': z,
+		'n': n,
+	}
+
+def regrid(x, lon1, lat1, lon2, lat2):
+	raise NotImplementedError()
+
+if __name__ == '__main__':
+	if len(sys.argv) < 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	type_ = sys.argv[1]
+	input_ = sys.argv[2:-1]
+	output = sys.argv[-1]
+
+	if len(input_) not in [1, 2]:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+
+	dd = [read(dirname) for dirname in input_]
 
 	fig = plt.figure()
 	ax = fig.add_subplot(1, 1, 1, projection=ccrs.SouthPolarStereo())
@@ -102,20 +132,33 @@ if __name__ == '__main__':
 		lw=0.5,
 	)
 
-	levels = LEVELS.get(type_)
+	type_ext = type_ + ('_diff' if len(dd) == 2 else '')
 
-	cmap = CMAP.get(type_)
+	levels = LEVELS.get(type_ext)
+
+	cmap = CMAP.get(type_ext)
+
+	if len(dd) == 1:
+		lon = dd[0]['lon']
+		lat = dd[0]['lat']
+		z = dd[0]['z']/dd[0]['n']
+	else:
+		lon = LON
+		lat = LAT
+		z0 = regrid(dd[0]['z'], dd[0]['lon'], dd[0]['lat'], lon, lat)
+		z1 = regrid(dd[1]['z'], dd[1]['lon'], dd[1]['lat'], lon, lat)
+		z = z0/dd[0]['n'] - z1/dd[1]['n']
 
 	z2, x, y = cutil.add_cyclic(z.T, lon, lat)
 	if type_ in ['cyc', 'stab']:
-		z2 = z2*100/n
+		z2 = z2*100
 	cf = ax.contourf(x, y, z2,
 		transform=ccrs.PlateCarree(),
 		levels=levels,
 		cmap=cmap,
 	)
 
-	plt.colorbar(cf, label=LABEL.get(type_, type_), ticks=levels)
+	plt.colorbar(cf, label=LABEL.get(type_ext, type_ext), ticks=levels)
 
 	theta = np.linspace(0, 2*np.pi, 100)
 	center, radius = [0.5, 0.5], 0.5

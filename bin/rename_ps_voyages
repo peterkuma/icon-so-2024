@@ -17,7 +17,8 @@ if __name__ == '__main__':
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
 	dirname = sys.argv[1]
-	map_ = ds.read(os.path.join(os.path.dirname(__file__), 'input/obs/ps_voyage_name_map.csv'))
+	map_ = ds.read(os.path.join(os.path.dirname(__file__),
+		'../input/obs/ps_voyage_name_map.csv'))
 	names = os.listdir(dirname)
 	old = [x.replace('/', '_') for x in map_['ant']]
 	new = [x.replace('/', '_') for x in map_['ps']]
