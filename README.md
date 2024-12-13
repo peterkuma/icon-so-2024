@@ -343,6 +343,8 @@ backscatter. The output is stored under `data/era5/samples`.
 
 ### recalib_obs
 
+Requires: `alcf_obs`
+
 Recalibrate observations. This changes the cloud threshold and assumed
 backscatter noise standard deviation. The output is stored under
 `data/obs/samples/*/lidar_recalib_bsd`.

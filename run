@@ -32,7 +32,7 @@ recalib () {
 		::: $(cat sources/by_instrument/{cl51,ct25k})
 }
 
-run_alcf () {
+run_alcf_model () {
 	local model="$1"
 	local in="$2"
 	local out="$3"
@@ -414,9 +414,24 @@ download_merra2)
 		:::: sources/all
 	;;
 
+alcf_obs)
+	in="input/obs/lidar"
+	out="data/obs/samples_"
+	mkdir -p "$out"
+	parallel -j 4 -u \
+		alcf auto lidar cl51 "$in"/cl51/nc/{} "$out"/{} \
+		:::: sources/by_instrument/cl51
+	parallel -j 4 -u \
+		alcf auto lidar cl51 "$in"/ct25k/nc/{} "$out"/{} \
+		:::: sources/by_instrument/ct25k
+	parallel -j 4 -u \
+		alcf auto lidar cl51 "$in"/chm15k/{} "$out"/{} \
+		:::: sources/by_instrument/chm15k
+	;;
+
 alcf_model_levante)
 	for year in $model_years; do
-		run_alcf \
+		run_alcf_model \
 			icon_intake_healpix \
 			"{ https://data.nextgems-h2020.eu/catalog.yaml ICON ngc3028 PT3H 10 }" \
 			"data/$model/samples/$year" \
@@ -425,11 +440,11 @@ alcf_model_levante)
 	;;
 
 alcf_merra2)
-	run_alcf merra2 input/merra2/samples data/merra2/samples
+	run_alcf_model merra2 input/merra2/samples data/merra2/samples
 	;;
 
 alcf_era5)
-	run_alcf era5 input/era5/samples data/era5/samples
+	run_alcf_model era5 input/era5/samples data/era5/samples
 	;;
 
 recalib_obs)
