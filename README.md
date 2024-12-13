@@ -1,18 +1,19 @@
 # Code for a manuscript "Ship and ground-based lidar and radiosonde evaluation of Southern Ocean clouds in the storm-resolving general circulation model ICON and the ERA5 and MERRA-2 reanalyses"
 
-**This repository is currently in preparation.**
+This repository contains code for the manuscript "Ship and ground-based lidar
+and radiosonde evaluation of Southern Ocean clouds in the storm-resolving
+general circulation model ICON and the ERA5 and MERRA-2 reanalyses" (DOI:
+[10.5281/zenodo.14071808](https://doi.org/10.5281/zenodo.14071808)).
 
-This repository contains code for a manuscript "Ship and ground-based lidar and
-radiosonde evaluation of Southern Ocean clouds in the storm-resolving general
-circulation model ICON and the ERA5 and MERRA-2 reanalyses".
-
-Due to space requirements, accompanying data for this code must be downloaded
-from other sources. [TODO]
+Due to space requirements (~1 TB), we do not include the source data here. They
+have to be either obtained from the various original sources (see the Open
+Research Section in the manuscript), or requested from the authors. The latter
+might be a better option because it can take a large amount of time to download
+some of the data, such as ERA5, from the original repositories.
 
 The code in this repository is for running all of the data processing steps and
-plotting, in addition to downloading reanalysis data and extracting ICON data
-on the Levante supercomputer (not needed if you download the full accompanying
-data, which contain the reanalysis and ICON data).
+plotting, in addition to downloading the reanalysis data and extracting ICON
+data on the Levante supercomputer.
 
 ## Requirements
 
@@ -30,12 +31,13 @@ The version numbers are advisory, and the code might work with earlier versions
 as well.
 
 - Python >= 3.11
-- R >= 4.2.2
 - cdo >= 2.1.1
+- GNU parallel >= 20221122
+- R >= 4.2.2 (for map plotting only)
 
 Python packages:
 
-- alcf >= 2.0.1
+- alcf, custom version based on 2.0.1
 - aquarius_time >= 0.4.0
 - cartopy >= 0.21.1
 - ds_format >= 4.1.0
@@ -53,11 +55,7 @@ on DKRZ requires the following Python packages:
 - healpy >= 1.16.6
 - intake >= 0.6.8
 
-If you download the full accompanying data, running the data extraction on
-Levante is not needed, because the ICON data at the voyage tracks and stations
-are already contained in the full data.
-
-R packages:
+R packages (for map plotting only):
 
 - rgdal >= 1.6
 - sp >= 1.6
@@ -90,10 +88,117 @@ tar xf CyTRACK-1.0.1.tar.gz
 mv CyTRACK-1.0.1 cytrack
 ```
 
+## Input data
+
+The directory `input` should be populated with the input data before running
+the commands documented below, except for reanalysis data along the
+voyage/station locations, which can be downloaded with the `download_merra2`
+and `download_era5` commands.
+
+The input data is expected to be organized in `input` in multiple directory
+as follow.
+
+### ceres
+
+Directory with CERES `SYN1deg-Day_Terra-Aqua-MODIS_Edition4A` NetCDF files
+(years 2010-2021). These can be produced by converting the CERES HDF files
+to NetCDF with [h4toh5](https://www.hdfeos.org/software/h4toh5.php).
+
+### era5
+
+This directory should contain the following subdirectories:
+
+- `cyc`: ERA5 surface-level 6-hourly instantaneous NetCDF files with the
+  variables `latitude`, `longitude`, `msl`, `time`, `u10`, `v10` (years
+  2010-2021).
+- `lts/plev`: ERA5 pressure-level 6-hourly instantaneous NetCDF files with the
+  variables `latitude`, `longitude`, `t`, and `time`, merged by time (with cdo
+  or `ds merge`) into yearly files `2010.nc`, ..., `2013.nc`.
+- `lts/surf`: The same as above, but for surface-level and the variables
+  `latitude`, `longitude`, `sp`, `t2m`, and `valid_time`.
+
+### natural_earth
+
+This directory should contain a single subdirectory `ne_50m_land`, with data
+extracted from [Natural Earth](https://www.naturalearthdata.com) (1:50m
+Physical Vectors Land). This is only required for map plotting.
+
+### obs
+
+Observational data from the campaigns. It should contain the following
+subdirectories.
+
+#### lidar
+
+- `chm15k`: This directory should contain one subdirectory per
+  campaign (`HMNZSW16`, `NBP1704`, `TAN1702`, and `TAN1802`), containing
+  NetCDF files extracted from the corresponding Lufft CHM 15k archives in the
+  manuscript data repository (DOI:
+  [10.5281/zenodo.14422427](https://doi.org/10.5281/zenodo.14422427)) and the
+  TAN1802 repository (DOI:
+  [10.5281/zenodo.4060236](https://doi.org/10.5281/zenodo.4060236)).
+- `cl51/dat`: The same as above, but containing the Vaisala
+  CL51 DAT files for the `AA15-16`, `TAN1502`, and the RV *Polarstern* voyages.
+  The RV *Polarstern* voyages should use the `PS`*...* names, not the
+  `ANT-`*...* names. See the file `ps_voyage_name_map.csv` for mapping between
+  the two.
+- `cl51/nc`: The same as above, but containing files converted
+  from DAT to NetCDF with [cl2nc](https://github.com/peterkuma/cl2nc).
+- `ct25k/nc`: This directory should contain the Vaisala CT25K
+  NetCDF files for the `MARCUS` and `MICRE` campaigns, downloaded from
+  [ARM](https://www.arm.gov).
+
+#### rs
+
+This directory should contain subdirectories for each campaign which has
+radiosonde data available.
+
+- `MARCUS`: This directory should contain NetCDF files from the corresponding
+  ARM archive containing the `marsondewnpnM1.b1`*...* files.
+- `NBP1704` and `TAN1702`: These directories should contain the files extracted
+  from the corresponding archives for radiosondes in the manuscript data
+  repository. `NBP1704` should contain NetCDF files. `TAN1702` should contain
+  directories produced by the InterMet Systems software, one per radiosonde
+  launch.
+- `PS`*...* exept `PS111`-`PS124`: Directories for the RV *Polarstern* voyages,
+  each containing a file `summary.txt` and a subdirectory `tab` with `.tab`
+  files coming from the RV *Polarstern* repositories for upper air data on
+  Pangaea. In addition, a file `summary_wo_header.tab` and subdirectory
+  `tab_wo_header` should be created, containing the same files, but with the
+  headers removed (text between `/*` and `*/`).
+- `PS111`-`PS124`: The same as above, but containing files
+  `PS`*...*`_radiosonde.tab` and `PS`*...*`_radiosonde_wo_header.tab`, which
+  is the same as the former but with the headers removed.
+- `TAN1802`: The same as `TAN1702`, but extracted from the TAN1802 data
+  repository archive with the Intermet Systems radiosonde data.
+
+#### surf
+
+This directory should contain subdirectories for the following campaings:
+
+- `AA15-16`: This subdirectory should contain CSV files extracted from the
+  corresponding surfave archive in the manuscript data repository.
+- `HMNZSW16` and `NBP1704`: The same as above, but MATLAB files for the
+  corresponding campaings.
+- `PS/metcont/tab`: This subdirectory should contain `.tab` files named
+  `PS`*voyage`.tab` from the continuous meteorological measurement archives of
+  the RV *Polarstern* voyages from Pangaea.
+- `PS/metcont/tab_wo_header`: The same as above, but with `.tab` files with the
+  headers removed.
+- `PS/metcont_extra`: This subdirectory should contain the files copied from
+  the `ps_metcont_extra` directory in this repository.
+- `PS/thermosalinograph/tab`: The same as `PS/metcont/tab`, but for `.tab`
+  files from the voyage thermosalinograph archives on Pangaea.
+- `PS/thermosalinograph/tab_wo_header`: The same as above, but with `.tab`
+  files with the headers removed.
+
 ## Commands
 
-The following command are run as `./run` *cmd*, where *cmd* is the command
-name. "Model" below means ICON, and *model* is `icon_cy3`.
+The following command are run as `./run` *cmd* in the main directory of the
+repository, where *cmd* is the command name. "Model" below means ICON, and
+*model* is `icon_cy3`. The output of the commands is stored in a `data`
+directory and plots are stored in a `plot` directory. The input data for the
+commands come either from the `input` or `data` directories.
 
 ### surf
 
@@ -377,39 +482,16 @@ Arguments:
 
 - *dir*: Directory.
 
-## License and attribution
+## License
 
-The code under the `bin` and `lib` directories, `run`, and `requirements.txt`
-is Copyright © 2023–2024 Peter Kuma and licensed under the MIT license (see
-`LICENSE.md`).
+All except for the `metcont_extra` directory:
 
-`README.md` and plots under `plot` are Copyright © 2023–2024 Peter Kuma and
-licensed under the [Creative Commons Attribution 4.0 International license (CC
-BY 4.0)](https://creativecommons.org/licenses/by/4.0/), (see `LICENSE_CC.txt`).
+Copyright © 2023–2024 Peter Kuma. This code is available under the MIT license
+(see `LICENSE.md`).
 
-The original voyage and station data under `input` and the derived data under
-`data` (available in the extended repository [TODO]) come from various sources,
-with specific attribution requirements:
+The `metcont_extra` directory:
 
-- AA15-16: Australian Antarctic Division and University of Canterbury.
-- CERES: NASA Langley Atmospheric Science Data Center Distributed Active
-  Archive Center.
-- ERA5: Copernicus Climate Change Service.
-- ICON: nextGEMS, Deutscher Wetterdienst, Max-Planck-Institute for Meteorology,
-  Deutsches Klimarechenzentrum, Karlsruhe Institute of Technology, and Center
-  for Climate Systems Modeling.
-- MERRA-2: Global Modeling and Assimilation Office, NASA.
-- Natural Earth: public domain dataset provided by naturalearthdata.com.
-- Polarstern (PS*): Alfred Wegener Institute and Pangaea.
-- HMNZSW16: Royal New Zealand Navy and University of Canterbury.
-- NBP1704: National Science Foundation, Cooperative Institute for Research in
-  Environmental Sciences, University of Colorado and University of Canterbury.
-- TAN1502, TAN1702, and TAN1802: National Institute of Water and Atmospheric
-  Research and University of Canterbury.
-- MARCUS: Atmospheric Radiation Measurement and Australian Antarctic Division.
-- MICRE: Atmospheric Radiation Measurement, the Australian Bureau of
-  Meteorology, and Australian Antarctic Division.
-
-Please see the Acknowledgements and Data availability sections in the
-manuscript for more information, and the text of the manuscript for the
-relevant publications to cite if you use these data.
+These data come from AWI and are for continous meteorological measurements
+collected on the `PS124` and `PS81_8` voyages of RV *Polarstern*, missing on
+Pangaea. No license is specified, but is likely the same as the corresponding
+repositories on Pangaea.
