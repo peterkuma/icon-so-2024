@@ -1,0 +1,17 @@
+# Format until PS105																																	
+Names	2003-10-22	2017-05-01	Year	Month	Day	Hour	Minute	Second	TsbTemperature	TsbConductivity	TsbSalinity	AirTemperature	RelativeHumidity	DewPointTemperature	Pressure	RelWindSpeed	RelWindDirection	Swd	Visibility	Ceiling	TrueWindDirection	TrueWindSpeed	Heading	Latitude	Longitude	Depth	Course	Speed	TskTemperature	TskConductivity	TskSalinity	MaxRelWindSpeedLastMin	Precipitation
+Formats	2003-10-22	2017-05-01	%04d	 %02d	 %02d	 %02d	 %02d	 %02d	 %5.2f	 %5.2f	 %5.2f	 %5.1f	 %4.0f	 %5.1f	 %7.1f	 %5.1f	 %4.0f	 %7.1f	 %6.0f	 %6.0f	 %4.0f	 %5.1f	 %5.1f	 %8.4f	 %9.4f	 %5.0f	 %5.1f	 %5.1f	 %5.2f	 %5.2f	 %5.2f	 %5.1f	 %8.4f
+DefaultValues	2003-10-22	2017-05-01	-1	-1	-1	-1	-1	-1	99.99	99.99	99.99	999.9	999	999.9	9999.9	99.9	999	9999.9	99999	99999	999	99.9	999.9	999.9999	9999.9999	99999	999.9	99.9	99.99	99.99	99.99	999.9	99.9999
+Units	2003-10-22	2017-05-01							°C	unknown	unknown	°C	%	°C	hPa	m/s	°	m*s^-1	m	ft	°	m/s	°	°	°	m	°	kt	°C	unknown	unknown	m/s	mm/h
+																																	
+# Format since PS106.1																																	
+Names	2017-05-01	2019-06-02	Year	Month	Day	Hour	Minute	Second	WaterTemperature	AirTemperature	RelativeHumidity	DewPointTemperature	Pressure	RelWindSpeed	RelWindDirection	Swd	Visibility	Ceiling	TrueWindDirection	TrueWindSpeed	Heading	Latitude	Longitude	Depth	Course	Speed	MaxRelWindSpeedLastMin	Precipitation					
+Formats	2017-05-01	2019-06-02	%04d	 %02d	 %02d	 %02d	 %02d	 %02d	 %5.2f	 %5.1f	 %3d	 %5.1f	 %6.1f	 %4.1f	 %3d	 %6.1f	 %5d	 %5d	 %3d	 %4.1f	 %5.1f	 %8.4f	 %9.4f	 %5d	 %5.1f	 %4.1f	 %5.1f	 %7.4f					
+DefaultValues	2017-05-01	2019-06-02	-1	-1	-1	-1	-1	-1	99.99	999.9	999	999.9	9999.9	99.9	999	9999.9	99999	99999	999	99.9	999.9	999.9999	9999.9999	99999	999.9	99.9	999.9	99.9999					
+Units	2017-05-01	2019-06-02							°C	°C	%	°C	hPa	m/s	°	m*s^-1	m	ft	°	m/s	°	°	°	m	°	kt	m/s	mm/h					
+																																	
+# Format since PS121 (made some fields wider to better handle defaults)																																	
+Names	2019-06-02		Year	Month	Day	Hour	Minute	Second	WaterTemperature	AirTemperature	RelativeHumidity	DewPointTemperature	Pressure	RelWindSpeed	RelWindDirection	Swd	Visibility	Ceiling	TrueWindDirection	TrueWindSpeed	Heading	Latitude	Longitude	Depth	Course	Speed	MaxRelWindSpeedLastMin	Precipitation					
+Formats	2019-06-02		%04d	 %02d	 %02d	 %02d	 %02d	 %02d	 %5.2f	 %5.1f	 %3d	 %5.1f	 %6.1f	 %5.1f	 %3d	 %6.1f	 %5d	 %6d	 %3d	 %5.1f	 %5.1f	 %8.4f	 %9.4f	 %5d	 %5.1f	 %4.1f	 %5.1f	 %7.4f					
+DefaultValues	2019-06-02		-1	-1	-1	-1	-1	-1	99.99	999.9	999	999.9	9999.9	999.9	999	9999.9	99999	999999	999	999.9	999.9	999.9999	9999.9999	99999	999.9	99.9	999.9	99.9999					
+Units	2019-06-02								°C	°C	%	°C	hPa	m/s	°	m*s^-1	m	ft	°	m/s	°	°	°	m	°	kt	m/s	mm/h					
