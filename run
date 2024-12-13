@@ -23,13 +23,13 @@ recalib () {
 		alcf lidar default "$in" "$out" \
 		cloud_threshold: 5e-6 \
 		bsd: 5e-6 keep_vars: { $keep_vars } \
-		:::: input/obs/sources/by_instrument/chm15k
+		:::: sources/by_instrument/chm15k
 	parallel -t \
 		alcf lidar default "$in" "$out" \
 		cloud_threshold: 5e-6 \
 		bsd: 10e-6 \
 		keep_vars: { $keep_vars } \
-		::: $(cat input/obs/sources/by_instrument/{cl51,ct25k})
+		::: $(cat sources/by_instrument/{cl51,ct25k})
 }
 
 run_alcf () {
@@ -43,7 +43,7 @@ run_alcf () {
 		--track_lon_180 \
 		njobs: 4 \
 		keep_vars: { $keep_vars } \
-		::: $(cat input/obs/sources/by_instrument/{cl51,ct25k})
+		::: $(cat sources/by_instrument/{cl51,ct25k})
 	parallel -j 1 -u \
 		alcf auto model "$model" cl51 "$in"/{} "$out"/{} \
 		track: data/obs/track_hourly_40S+/{}.nc \
@@ -51,14 +51,14 @@ run_alcf () {
 		track_gap: 0 \
 		njobs: 16 \
 		keep_vars: { $keep_vars } \
-		:::: input/obs/sources/by_instrument/ct25k_stations
+		:::: sources/by_instrument/ct25k_stations
 	parallel -j 4 -u \
 		alcf auto model "$model" chm15k "$in"/{} "$out"/{} \
 		track: data/obs/track_hourly_40S+/{}.nc \
 		--track_lon_180 \
 		njobs: 4 \
 		keep_vars: { $keep_vars } \
-		:::: input/obs/sources/by_instrument/chm15k
+		:::: sources/by_instrument/chm15k
 }
 
 filter () {
@@ -67,7 +67,7 @@ filter () {
 	mkdir -p "$(dirname "$out")"
 	parallel -j1 -t \
 		bin/alcf_filter "$in" data/obs/track_hourly_40S+/{}.nc -40 "$out" \
-		:::: input/obs/sources/all
+		:::: sources/all
 }
 
 filter_cyc () {
@@ -81,7 +81,7 @@ filter_cyc () {
 		data/obs/track_hourly_40S+/{}.nc \
 		$y \
 		"$out"/{}.nc \
-		:::: input/obs/sources/all
+		:::: sources/all
 }
 
 filter_lts () {
@@ -91,7 +91,7 @@ filter_lts () {
 	mkdir -p "$(dirname "$out")"
 	parallel -j1 \
 		bin/alcf_filter_lts_eis lts "$stab" 12 "$in" "$out" \
-		:::: input/obs/sources/all
+		:::: sources/all
 }
 
 stats () {
@@ -105,7 +105,7 @@ stats () {
 		filter_include: { "$filter_noprecip" "$filter" } \
 		keep_vars: { $keep_vars } \
 		--debug \
-		:::: input/obs/sources/all
+		:::: sources/all
 }
 
 stats_lat () {
@@ -121,7 +121,7 @@ stats_lat () {
 		lat_lim: { "$lat1" "$lat2" } \
 		keep_vars: { $keep_vars } \
 		--debug \
-		:::: input/obs/sources/all
+		:::: sources/all
 }
 
 stats_all () {
@@ -170,13 +170,13 @@ rs () {
 	local out="$3"
 	parallel \
 		"mkdir -p $out/{}; bin/rs_profile $type_ data/obs/rs/locations/{}.csv $in/{} -40 $out/{}" \
-		:::: input/obs/sources/rs
+		:::: sources/rs
 }
 
 rs_rstool () {
 	local in="$1"
 	local out="$2"
-	for src in $(cat input/obs/sources/rs); do
+	for src in $(cat sources/rs); do
 		mkdir -p "$out/$src"
 		parallel "echo {}; rstool prof prof {} $out/$src/{/}" \
 			::: "$in/$src/"*.nc
@@ -196,17 +196,17 @@ rs_stats () {
 			"$filter/$subset/$year"/{}.nc \
 			-90 -40 \
 			"$out/40S+_$subset"/$year/{}.nc \
-			:::: input/obs/sources/rs
+			:::: sources/rs
 	done
 	mkdir -p "$out/40S+/$year"
 	mkdir -p "$out/40-55S/$year"
 	mkdir -p "$out/55S+/$year"
 	parallel bin/rs_stats "$in"/{} -90 -40 "$out/40S+/$year"/{}.nc \
-		:::: input/obs/sources/rs
+		:::: sources/rs
 	parallel bin/rs_stats "$in"/{} -55 -40 "$out/40-55S/$year"/{}.nc \
-		:::: input/obs/sources/rs
+		:::: sources/rs
 	parallel bin/rs_stats "$in"/{} -90 -55 "$out/55S+/$year"/{}.nc \
-		:::: input/obs/sources/rs
+		:::: sources/rs
 }
 
 calc_cyc_dist () {
@@ -311,7 +311,7 @@ track)
 	mkdir -p "$out"
 	parallel \
 		bin/track default "$in"/{}.nc "$out"/{}.nc -90 -40 \
-		:::: input/obs/sources/all
+		:::: sources/all
 	;;
 
 plot_map)
@@ -396,14 +396,14 @@ download_era5)
 	mkdir -p input/era5
 	parallel -t -j1 \
 		'mkdir -p input/era5/{}; alcf download era5 track: data/obs/track_hourly_40S+/{}.nc input/era5/{}' \
-		:::: input/obs/sources/all
+		:::: sources/all
 	;;
 
 download_merra2)
 	mkdir -p input/merra2
 	parallel -t -j1 \
 		'mkdir -p input/merra2/{}; alcf download merra2 track: data/obs/track_hourly_40S+/{}.nc input/merra2/{}' \
-		:::: input/obs/sources/all
+		:::: sources/all
 	;;
 
 alcf_merra2)
@@ -441,7 +441,7 @@ recalib_era5)
 	;;
 
 alcf_ceres)
-	for src in $(cat input/obs/sources/all); do
+	for src in $(cat sources/all); do
 		mkdir -p "data/obs/samples_recalib_bsd/$src/lidar"
 		parallel \
 			bin/alcf_ceres \
@@ -588,7 +588,7 @@ plot_clt_hist)
 
 rs_obs)
 	# PS
-	for src in $(cat input/obs/sources/by_platform/ps); do
+	for src in $(cat sources/by_platform/ps); do
 		in="input/obs/rs/$src"
 		out="data/obs/rs/profiles/$src"
 		mkdir -p "$out"
@@ -608,8 +608,8 @@ rs_obs)
 	done
 	parallel \
 		'[ -e input/obs/rs/{}/*_radiosonde_wo_header.tab ] && bin/rs_ps_multi input/obs/rs/{}/*_radiosonde_wo_header.tab data/obs/rs/profiles/{}' \
-		:::: input/obs/sources/by_platform/ps
-	for src in $(cat input/obs/sources/by_platform/ps); do
+		:::: sources/by_platform/ps
+	for src in $(cat sources/by_platform/ps); do
 		parallel \
 			rstool prof prof {} "data/obs/surf/ps/$src.nc" {} \
 			::: "data/obs/rs/profiles/$src"/*.nc
