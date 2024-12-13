@@ -313,6 +313,11 @@ step is not needed if you have downloaded the full accompanying data.  This
 command requires `alcf download merra2 --login` to be run first to log in to
 the data distribution service.
 
+### alcf_obs
+
+Run ALCF on the observed input data under `input/obs/lidar` to produce
+simulated backscatter. The output is stored under `data/obs/samples`.
+
 ### alcf_model_levante
 
 Requires: `track`
