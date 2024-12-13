@@ -37,7 +37,7 @@ as well.
 
 Python packages:
 
-- alcf, a custom version available at [peterkuma/icon-so-2024-alcf](https://github.com/peterkuma/icon-so-2024-alcf)
+- ALCF, a custom version (see below)
 - aquarius_time >= 0.4.0
 - cartopy >= 0.21.1
 - ds_format >= 4.1.0
@@ -76,7 +76,12 @@ python3 -m venv venv
 pip3 install -r requirements.txt
 ```
 
-The custom ALCF can be installed with:
+This also activates the environment for the current session. After finishing
+working with the code, the environment can be deactivated with `deactivate`.
+
+A custom version of the ALCF is required, available at
+[peterkuma/icon-so-2024-alcf](https://github.com/peterkuma/icon-so-2024-alcf).
+It can be installed with:
 
 ```sh
 git clone https://github.com/peterkuma/icon-so-2024-alcf
@@ -84,9 +89,6 @@ cd icon-so-2024-alcf
 ./download_cosp
 pipx install .
 ```
-
-This also activates the environment for the current session. After finishing
-working with the code, the environment can be deactivated with `deactivate`.
 
 To run the cyclone tracking commands, download and upack version 1.0.1 of
 [CyTRACK](https://github.com/apalarcon/CyTRACK):
