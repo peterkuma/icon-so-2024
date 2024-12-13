@@ -214,8 +214,8 @@ commands come either from the `input` or `data` directories.
 Some of the commands should be run on the Levante supercomputer, or in some
 other way that allows you to access the ICON model output. It is expected that
 you have a second instance of this repository on the supercomputer, where you
-run the Levante specific commands. The other commands are run on the main
-instance of this repository.
+run the Levante specific commands (*...*`_levante`). The other commands are run
+on the main instance of this repository.
 
 ### surf
 
@@ -314,6 +314,8 @@ command requires `alcf download merra2 --login` to be run first to log in to
 the data distribution service.
 
 ### alcf_model_levante
+
+Requires: `track`
 
 Run ALCF on the model input data to produce simulated backscatter. The output
 is stored under `data/`*model*`/samples`.
