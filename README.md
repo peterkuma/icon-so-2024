@@ -37,7 +37,7 @@ as well.
 
 Python packages:
 
-- alcf, custom version based on 2.0.1
+- alcf, a custom version available at [peterkuma/icon-so-2024-alcf](https://github.com/peterkuma/icon-so-2024-alcf)
 - aquarius_time >= 0.4.0
 - cartopy >= 0.21.1
 - ds_format >= 4.1.0
@@ -80,7 +80,7 @@ This also activates the environment for the current session. After finishing
 working with the code, the environment can be deactivated with `deactivate`.
 
 To run the cyclone tracking commands, download and upack version 1.0.1 of
-CyTRACK:
+[CyTRACK](https://github.com/apalarcon/CyTRACK):
 
 ```sh
 wget -O CyTRACK-1.0.1.tar.gz https://github.com/apalarcon/CyTRACK/archive/refs/tags/v1.0.1.tar.gz
@@ -185,7 +185,7 @@ This directory should contain subdirectories for the following campaings:
   the RV *Polarstern* voyages from Pangaea.
 - `PS/metcont/tab_wo_header`: The same as above, but with `.tab` files with the
   headers removed.
-- `PS/metcont_extra`: This subdirectory should contain the files copied from
+- `PS/metcont_extra`: This subdirectory should contain files copied from
   the `ps_metcont_extra` directory in this repository.
 - `PS/thermosalinograph/tab`: The same as `PS/metcont/tab`, but for `.tab`
   files from the voyage thermosalinograph archives on Pangaea.

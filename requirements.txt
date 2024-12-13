@@ -1,4 +1,3 @@
-alcf==2.0.1
 aquarius_time==0.4.0
 cartopy==0.21.1
 ds_format==4.1.0
