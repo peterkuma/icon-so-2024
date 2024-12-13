@@ -63,7 +63,7 @@ R packages (for map plotting only):
 To install the required packages on Debian-based Linux distributions:
 
 ```sh
-apt install python3 r-base r-cran-gdal r-cran-sp cdo
+apt install python3 pipx cdo r-base r-cran-gdal r-cran-sp
 ```
 
 To avoid compatibility issues, it is recommended to install the specific
@@ -74,6 +74,15 @@ versions of the required Python packages (listed in the file
 python3 -m venv venv
 . venv/bin/activate
 pip3 install -r requirements.txt
+```
+
+The custom ALCF can be installed with:
+
+```sh
+git clone https://github.com/peterkuma/icon-so-2024-alcf
+cd icon-so-2024-alcf
+./download_cosp
+pipx install .
 ```
 
 This also activates the environment for the current session. After finishing
