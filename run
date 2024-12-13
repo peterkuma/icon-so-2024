@@ -36,6 +36,11 @@ run_alcf () {
 	local model="$1"
 	local in="$2"
 	local out="$3"
+	local year="$4"
+	local opts=""
+	if [ ! -z "$year" ]; then
+		opts="override_year: $year"
+	fi
 	mkdir -p "$out"
 	parallel -j 4 -u \
 		alcf auto model "$model" cl51 "$in"/{} "$out"/{} \
@@ -43,6 +48,7 @@ run_alcf () {
 		--track_lon_180 \
 		njobs: 4 \
 		keep_vars: { $keep_vars } \
+		$opts \
 		::: $(cat sources/by_instrument/{cl51,ct25k})
 	parallel -j 1 -u \
 		alcf auto model "$model" cl51 "$in"/{} "$out"/{} \
@@ -51,6 +57,7 @@ run_alcf () {
 		track_gap: 0 \
 		njobs: 16 \
 		keep_vars: { $keep_vars } \
+		$opts \
 		:::: sources/by_instrument/ct25k_stations
 	parallel -j 4 -u \
 		alcf auto model "$model" chm15k "$in"/{} "$out"/{} \
@@ -58,6 +65,7 @@ run_alcf () {
 		--track_lon_180 \
 		njobs: 4 \
 		keep_vars: { $keep_vars } \
+		$opts \
 		:::: sources/by_instrument/chm15k
 }
 
@@ -406,6 +414,16 @@ download_merra2)
 		:::: sources/all
 	;;
 
+alcf_model_levante)
+	for year in $model_years; do
+		run_alcf \
+			icon_intake_healpix \
+			"{ https://data.nextgems-h2020.eu/catalog.yaml ICON ngc3028 PT3H 10 }" \
+			"data/$model/samples/$year" \
+			"$year"
+	done
+	;;
+
 alcf_merra2)
 	run_alcf merra2 input/merra2/samples data/merra2/samples
 	;;
@@ -638,6 +656,14 @@ rs_obs)
 	parallel \
 		rstool prof prof {} data/obs/surf/MARCUS.nc {} \
 		::: data/obs/rs/profiles/MARCUS/*.nc
+	;;
+
+rs_model_levante)
+	for y in $model_years; do
+		parallel -j 16 \
+			"mkdir -p data/icon_cy3/rs/profiles/$y/{/.}; bin/rs_icon {} $y data/icon_cy3/rs/profiles/$y/{/.}" \
+			::: data/obs/rs/locations/*.csv
+	done
 	;;
 
 rs_model)

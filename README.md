@@ -211,6 +211,12 @@ repository, where *cmd* is the command name. "Model" below means ICON, and
 directory and plots are stored in a `plot` directory. The input data for the
 commands come either from the `input` or `data` directories.
 
+Some of the commands should be run on the Levante supercomputer, or in some
+other way that allows you to access the ICON model output. It is expected that
+you have a second instance of this repository on the supercomputer, where you
+run the Levante specific commands. The other commands are run on the main
+instance of this repository.
+
 ### surf
 
 Convert native voyage surface navigation and observations to NetCDF.
@@ -307,6 +313,18 @@ step is not needed if you have downloaded the full accompanying data.  This
 command requires `alcf download merra2 --login` to be run first to log in to
 the data distribution service.
 
+### alcf_model_levante
+
+Run ALCF on the model input data to produce simulated backscatter. The output
+is stored under `data/`*model*`/samples`.
+
+This command should be run on the Levante supercomputer. The directory
+`data/obs/track_hourly_40S+` should be copied to the instance of this
+repository on the supercomputer before running this command.  The output is
+stored in the `data/`*model*`/samples` directory. It should be copied from the
+supercomputer to the main instance of this repository (where you run all of the
+non-Levante commands).
+
 ### alcf_merra2
 
 Requires: `download_merra2`
@@ -329,22 +347,24 @@ backscatter noise standard deviation. The output is stored under
 
 ### recalib_model
 
+Requires: `alcf_model_levante`
+
 The same as `recalib_obs`, but for ICON. The output is stored under
-`data/`*model*`/samples`.
+`data/`*model*`/samples_recalib_bsd`.
 
 ### recalib_merra2
 
 Requires: `alcf_merra2`
 
 The same as `recalib_obs`, but for MERRA-2. The output is stored under
-`data/merra2/samples`.
+`data/merra2/samples_recalib_bsd`.
 
 ### recalib_era5
 
 Requires: `alcf_era5`
 
 The same as `recalib_obs`, but for ERA5. The output is stored under
-`data/era5/samples`.
+`data/era5/samples_recalib_bsd`.
 
 ### alcf_ceres
 
@@ -423,6 +443,17 @@ Plot total cloud fraction histogram (Figure 8). The output is stored under
 ### rs_obs
 
 Process radiosonde observations.
+
+### rs_model_levante
+
+Extract virtual radiosonde profiles from the model.
+
+This command should be run on the Levante supercomputer. The directory
+`data/obs/rs/locations` should be copied to the instance of this repository on
+the supercomputer before running this command.  The output is stored in the
+`data/icon_cy3/rs/profiles` directory. It should be copied from the
+supercomputer to the main instance of this repository (where you run all of the
+non-Levante commands).
 
 ### rs_model
 
