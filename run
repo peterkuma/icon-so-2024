@@ -300,8 +300,8 @@ surf)
 	parallel \
 		bin/surf_tan "$out/{/}.nc" {} \
 		::: "$in/TAN/nc/TAN1702"
-	bin/surf_nbp "$in/NBP1704.mat" "$out/NBP1704.nc"
-	bin/surf_hmnzsw "$in/HMNZSW16.mat" "$out/HMNZSW16.nc"
+	bin/surf_nbp "$in/NBP1704/shipall.mat" "$out/NBP1704.nc"
+	bin/surf_hmnzsw "$in/HMNZSW16/nav.mat" "$out/HMNZSW16.nc"
 	bin/surf_point 2016-04-03 2018-03-14 158.940000 -54.496800 "$out/MICRE.nc"
 	;;
 
