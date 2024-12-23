@@ -3,7 +3,7 @@
 This repository contains code for the manuscript "Ship and ground-based lidar
 and radiosonde evaluation of Southern Ocean clouds in the storm-resolving
 general circulation model ICON and the ERA5 and MERRA-2 reanalyses" (DOI:
-[10.5281/zenodo.14071808](https://doi.org/10.5281/zenodo.14071808)).
+[10.5281/zenodo.14070222](https://doi.org/10.5281/zenodo.14070222)).
 
 Due to space requirements (~1 TB), we do not include the source data here. They
 have to be either obtained from the various original sources (see the Open
