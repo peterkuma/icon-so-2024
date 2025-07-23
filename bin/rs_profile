@@ -49,7 +49,7 @@ VARS_MERRA2 = {
 		'H': 'zg',
 		'U': 'ua',
 		'V': 'va',
-		'RH': 'hur',
+		'QV': 'hus',
 		'PL': 'p',
 		'PS': 'ps',
 	},
@@ -159,7 +159,7 @@ def read(type_, dirname, t, lon, lat):
 
 	for product in vars_.keys():
 		filename = os.path.join(dirname, product, file)
-		print('<- %s' % filename)
+		#print('<- %s' % filename)
 
 		vars_p = vars_[product]
 		keys = list(vars_p.keys())
@@ -203,15 +203,7 @@ def read(type_, dirname, t, lon, lat):
 				do[new_var] = d[var]
 
 	if type_ == 'merra2':
-		do['hur'] *= 100	
-		#wsat = calc_wsat(p=do['ps'], ta=do['tas'])
-		#w = calc_w(hus=do['huss'])
-		#hurs = 100*w/wsat
-		#do['hur'][0] = hurs
-		#do['ta'][0] = do['tas']
-		#do['zg'][0] = 2
-		#do['p'][0] = do['ps']
-		#del do['tas'], do['huss']
+		pass
 	elif type_ == 'era5':
 		do['p'] *= 100
 		do['zg'] /= 9.80665
@@ -239,7 +231,7 @@ if __name__ == '__main__':
 	lat = float(sys.argv[4]) if len(sys.argv) == 6 else None
 	output = sys.argv[-1]
 
-	print('<- %s' % loc)
+	#print('<- %s' % loc)
 	d = ds.read(loc)
 	d['time'] = aq.from_iso(d['time'])
 	d['lon'] = d['lon'] % 360

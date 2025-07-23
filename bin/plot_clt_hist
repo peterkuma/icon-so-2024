@@ -8,6 +8,13 @@ Arguments:
   INPUT   Sources. Input directory with alcf stats output files (NetCDF).
   LABEL   Source label.
   OUTPUT  Output plot (PDF).
+
+Options:
+
+  panel_number: VALUE  Panel number. Default: "none".
+  title: VALUE         Plot title. Default: "none".
+  xlabel: VALUE        Plot x-label. One of: "true" or "false". Default: "true".
+  ylabel: VALUE        Plot y-label. One of: "true" or "false". Default: "true".
 '''
 
 COLOR = ['k', '#0084C8', '#009100', '#DC0000']

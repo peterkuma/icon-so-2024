@@ -99,43 +99,50 @@ def read_das_weather(dirname):
 		'tas': np.hstack(temp) + 273.15,
 		'hurs': 100*calc_esat(ta=(np.hstack(dew_point) + 273.15))/calc_esat(ta=(np.hstack(temp) + 273.15)),
 		'ps': np.hstack(pressure)*1e2,
-		'wds': np.hstack(wind_speed),
-		'wdd': np.hstack(wind_direction),
+		'wdss': np.hstack(wind_speed),
+		'wdds': np.hstack(wind_direction),
 		'time': np.hstack(time) + 2415018.5,
 		'.': {
 			'tas': {
 				'.dims': ['time'],
-				'long_name': 'near-surface_air_temperature',
+				'long_name': 'near-surface air temperature',
+				'standard_name': 'air_temperature',
 				'units': 'K',
 			},
 			'hurs': {
 				'.dims': ['time'],
-				'long_name': 'relative_humidity',
+				'long_name': 'relative humidity',
+				'standard_name': 'relative_humidity',
 				'units': '%',
 			},
 			'ps': {
 				'.dims': ['time'],
-				'long_name': 'surface_air_pressure',
+				'long_name': 'surface air pressure',
+				'standard_name': 'surface_air_pressure',
 				'units': 'Pa'
 			},
-			'wds': {
+			'wdss': {
 				'.dims': ['time'],
-				'long_name': 'wind_speed',
+				'long_name': 'near-surface wind speed',
+				'standard_name': 'wind_speed',
 				'units': 'm s-1',
 			},
-			'wdd': {
+			'wdds': {
 				'.dims': ['time'],
-				'long_name': 'wind_from_direction',
+				'long_name': 'near-surface wind from direction',
+				'standard_name': 'wind_from_direction',
 				'units': 'degrees',
 			},
 			'ts': {
 				'.dims': ['time'],
-				'long_name': 'surface_temperature',
+				'long_name': 'surface temperature',
+				'standard_name': 'surface_temperature',
 				'units': 'K',
 			},
 			'time': {
 				'.dims': ['time'],
 				'long_name': 'time',
+				'standard_name': 'time',
 				'units': 'days since -4712-01-01 12:00:00',
 			},
 		},

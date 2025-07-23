@@ -19,13 +19,16 @@ import aquarius_time as aq
 
 TEMPLATE = 'CER_SYN1deg-Day_Terra-Aqua-MODIS_Edition4A_*.%d%02d%02d.nc'
 
-VARS_RAD = ['input_rldt', 'input_rlut', 'input_rsdt', 'input_rsut']
+VARS_FIELDS = ['rldt', 'rlut', 'rsdt', 'rsut', 'clivi', 'clwvi', 'clt']
 
 VARS = {
 	'Adjusted_AllSky_Flux_Profiles_adj_all_lw_dn': 'input_rldt',
 	'Adjusted_AllSky_Flux_Profiles_adj_all_lw_up': 'input_rlut',
 	'Adjusted_AllSky_Flux_Profiles_adj_all_sw_dn': 'input_rsdt',
 	'Adjusted_AllSky_Flux_Profiles_adj_all_sw_up': 'input_rsut',
+	'Adjusted_Input_Meteorological_Variables_adj_cld_iwp': 'input_clivi',
+	'Adjusted_Input_Meteorological_Variables_adj_cld_lwp': 'input_clwvi',
+	'Adjusted_Input_Meteorological_Variables_adj_cld_amount': 'input_clt',
 	'longitude': 'lon',
 	'latitude': 'lat',
 }
@@ -58,7 +61,25 @@ META = {
 		'long_name': 'toa outgoing shortwave radiation',
 		'standard_name': 'toa_outgoing_shortwave_flux',
 		'units': 'W m-2',
-	},	
+	},
+	'input_clivi': {
+		'.dims': ['time'],
+		'long_name': 'ice water path',
+		'standard_name': 'atmosphere_cloud_ice_content',
+		'units': 'kg m-2',	
+	},
+	'input_clwvi': {
+		'.dims': ['time'],
+		'long_name': 'condensed water path',
+		'standard_name': 'atmosphere_cloud_condensed_water_content',
+		'units': 'kg m-2',
+	},
+	'input_clt': {
+		'.dims': ['time'],
+		'long_name': 'total cloud fraction',
+		'standard_name': 'cloud_area_fraction',
+		'units': '%',
+	},
 }
 
 def read_cer(filename):
@@ -70,10 +91,14 @@ def read_cer(filename):
 	order_lat = np.argsort(d['lat'])
 	d['lon'] = d['lon'][order_lon]
 	d['lat'] = d['lat'][order_lat]
-	for k in VARS_RAD:
-		d[k] = d[k][0,:,:]
-		d[k] = d[k][order_lat,:]
-		d[k] = d[k][:,order_lon]
+	for k in VARS_FIELDS:
+		k2 = 'input_' + k
+		lev = 0 if k.startswith('r') else -1
+		d[k2] = d[k2][lev,:,:]
+		d[k2] = d[k2][order_lat,:]
+		d[k2] = d[k2][:,order_lon]
+	d['input_clivi'] *= 1e-3*d['input_clt']/100
+	d['input_clwvi'] *= 1e-3*d['input_clt']/100
 	return d
 
 if __name__ == '__main__':
@@ -84,7 +109,7 @@ if __name__ == '__main__':
 	ceres = sys.argv[2]
 	output = sys.argv[3]
 
-	print('<- %s' % input_)
+	#print('<- %s' % input_)
 	d = ds.read(input_)
 	for t in d['time']:
 		date = aq.to_date(t)	
@@ -104,7 +129,7 @@ if __name__ == '__main__':
 		if filename in CACHE:
 			d_cer = CACHE[filename]
 		else:
-			print('<- %s' % filename)
+			#print('<- %s' % filename)
 			d_cer = read_cer(filename)
 			CACHE[filename] = d_cer
 
@@ -125,9 +150,10 @@ if __name__ == '__main__':
 			for i in range(n)
 		])
 
-		for k in VARS_RAD:
-			d[k] = d_cer[k][ii,jj]
-			d['.'][k] = META[k]
+		for k in VARS_FIELDS:
+			k2 = 'input_' + k
+			d[k2] = d_cer[k2][ii,jj]
+			d['.'][k2] = META[k2]
 
 	print('-> %s' % output)
 	ds.write(output, d)

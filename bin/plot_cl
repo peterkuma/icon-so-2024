@@ -51,7 +51,7 @@ def read_subdir(dirname):
 		if not file.endswith('.nc'):
 			continue
 		filename = os.path.join(dirname, file)
-		print('<- %s' % filename)
+		#print('<- %s' % filename)
 		d = ds.read(filename)
 		d['filename'] = filename
 		d['name'] = file_to_name(filename)
@@ -81,9 +81,10 @@ def plot_dataset(var, dataset, source, label, color, linestyle):
 			plot(d,
 				days=days,
 				label=(label if i == 0 else None),
-				lw=1,
+				lw=0.8,
 				color=color,
 				linestyle=linestyle,
+				alpha=0.6,
 			)
 	else:
 		d = [d for d in dataset if d['name'] == source][0]
@@ -91,12 +92,12 @@ def plot_dataset(var, dataset, source, label, color, linestyle):
 		plot(d,
 			days=days,
 			label=label,
-			lw=1,
+			lw=0.8,
 			color=color,
 			linestyle=linestyle
 		)
 
-def plot(d, days=0, label=None, lw=1, color='k', linestyle='solid'):
+def plot(d, days=0, label=None, lw=1, color='k', linestyle='solid', alpha=None):
 	x = d[var][:,0] if d[var].ndim == 2 else d[var]
 	label_s = None
 	if label is not None:
@@ -110,6 +111,7 @@ def plot(d, days=0, label=None, lw=1, color='k', linestyle='solid'):
 		label=label_s,
 		lw=lw,
 		linestyle=linestyle,
+		alpha=alpha,
 	)
 
 if __name__ == '__main__':
@@ -138,11 +140,12 @@ if __name__ == '__main__':
 	ncols = 6
 	nrows = int(np.ceil(n/6))
 
-	#plt.figure(figsize=(10, 5))
-	#plt.figure(figsize=(10, 8))
 	plt.figure(figsize=(10, 12))
 
 	for i, name in enumerate(sources):
+		irow = i//ncols
+		icol = i % ncols
+	
 		plt.subplot(nrows, ncols, i + 1)
 		for j, dataset, label in zip(range(len(input_)), datasets, labels):
 			plot_dataset(var, dataset, name, label,
@@ -152,8 +155,8 @@ if __name__ == '__main__':
 		if not (i % ncols) == 0:
 			plt.gca().set_yticklabels([])
 		if not (
-			(i//ncols == nrows - 1) or
-			(i//ncols == nrows - 2) and ((i % ncols) > ((n - 1) % ncols))
+			(irow == nrows - 1) or
+			(irow == nrows - 2) and (icol > ((n - 1) % ncols))
 		):
 			plt.gca().set_xticklabels([])
 		plt.text(0.5, 0.95, name.replace('_', '/'),
@@ -161,37 +164,24 @@ if __name__ == '__main__':
 			va='top',
 			ha='center',
 		)
-		#plt.text(0.5, 0.55, '%.1f days' % days,
-		#	transform=plt.gca().transAxes,
-		#	va='top',
-		#	ha='center',
-		#	fontsize=8,
-		#)
-		#plt.ylim(0, 15)
 		ymax = {
 			'cl': 8,
 			'cbh': 2.5,
 		}[var]
 		yticks = {
-			#'cl': [0, 6, 1],
-			'cl': [0, 10, 2],
+			'cl': ([0, 10, 2] if i == 0 else [0, 8, 2]),
 			'cbh': [0, 3.0, 0.5],
 		}[var]
+		xlast = icol == ncols - 1 or i == n - 1
+		xfirst = icol != n % ncols
+		xticks = np.arange(0, 60, 10)
+		if not xfirst: xticks = xticks[1:]
+		if not xlast: xticks = xticks[:-1]
 		plt.ylim(0, ymax)
 		plt.gca().set_yticks(np.arange(*yticks))
-		#plt.xlim(0, 70)
 		plt.xlim(0, 50)
-		plt.gca().set_xticks(np.arange(0, 60, 10))
-		#plt.gca().set_xticks(np.arange(0, 125, 25))
-		#plt.gca().set_xticks(np.arange(0, 80, 20))
-		#if i == 0:
-		#	plt.legend(bbox_to_anchor=(0.3, 0.83))
+		plt.gca().set_xticks(xticks)
 		plt.legend(bbox_to_anchor=(1.04, 0.6), handlelength=1.5, loc='right')
-
-	#plt.suptitle('Southern Ocean cloud ALC comparison',
-	#	y=0.905,
-	#	fontweight='bold',
-	#)
 
 	plt.text(0.095, 0.5, 'Height (km)',
 		transform=plt.gcf().transFigure,
@@ -208,9 +198,8 @@ if __name__ == '__main__':
 		transform=plt.gcf().transFigure,
 		ha='center',
 	)
-
-	plt.subplots_adjust(wspace=0.15, hspace=0.15)
-	#plt.subplots_adjust(wspace=0.2, hspace=0.1)
+	
+	plt.subplots_adjust(wspace=0, hspace=0)
 
 	print('-> %s' % output)
-	plt.savefig(output, bbox_inches='tight')
+	plt.savefig(output, bbox_inches='tight', pad_inches=0)

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-'''Create ALCF filter for sea ice conditions.
+'''Create ALCF filter for equal sea ice conditions across observations and models.
 
-Usage: alcf_filter_sic INPUT1 INPUT2 [YEAR] OUTPUT
+Usage: alcf_filter_sic THRESHOLD SURF INPUT... OUTPUT
 
 Arugments:
 
-  INPUT1  First surface data file or directory (NetCDF).
-  INPUT2  Second surface data file or directory (NetCDF).
-  YEAR    Year to coerce to.
-  OUTPUT  Output file (NetCDF).
+  THRESHOLD  Threshold for sea ice detection.
+  SURF       Surface data from observations (NetCDF).
+  INPUT      Input directory - the output of alcf model (NetCDF).
+  OUTPUT     Output file (NetCDF).
 '''
 
 import sys
@@ -16,17 +16,6 @@ import os
 import numpy as np
 import ds_format as ds
 import aquarius_time as aq
-
-def coerce_time(time, year):
-	date1 = aq.to_date(time)
-	year1 = date1[1]
-	n = len(year1)
-	ones = np.ones(n, int)
-	zeros = np.zeros(n, int)
-	start1 = aq.from_date([ones, year1, ones, ones, zeros, zeros, zeros, zeros])
-	start = np.full(n, aq.from_date([1, year, 1, 1, 0, 0, 0]))
-	dt = time - start1
-	return start + dt
 
 def mask_to_intervals(mask, time):
 	ii = np.where(mask)[0]
@@ -43,50 +32,45 @@ def mask_to_intervals(mask, time):
 	intervals += [[time[i1], time[ii[-1]]]]
 	return intervals
 
-def read(filename):
-	if os.path.isdir(filename):
-		dd = ds.readdir(filename, ['time', 'input_sic', 'sic'])
-		for d in dd:
-			ds.rename_dim(d, 'sic_1', 'time')
-			ds.rename(d, 'input_sic', 'sic')
-		d = ds.merge(dd, 'time')
-	else:
-		d = ds.read(filename, ['time', 'input_sic', 'sic'])
-	return d
+cache = {}
 
 if __name__ == '__main__':
-	if len(sys.argv) not in [4, 5]:
+	if len(sys.argv) < 5:
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
-	input1 = sys.argv[1]
-	input2 = sys.argv[2]
-	year = int(sys.argv[3]) if len(sys.argv) == 5 else None
+	threshold = float(sys.argv[1])
+	surf = sys.argv[2]
+	input_ = sys.argv[3:-1]
 	output = sys.argv[-1]
 
-	d1 = read(input1)
-	d2 = read(input2)
+	d_surf = ds.read(surf)
+	n = ds.dim(d_surf, 'time')
+	mask = np.zeros(n, np.int8)
 
-	sic1 = d1['sic'] > 0.15
-	sic2 = d2['sic'] > 0.15
+	for i, t in enumerate(d_surf['time']):
+		date = aq.to_date(t)
+		s = aq.to_iso(aq.from_date([date[0], date[1], date[2], date[3]]))
+		file = s.replace(':', '') + '.nc'
+		for dirname in input_:
+			filename = os.path.join(dirname, file)
+			if filename in cache:
+				d = cache[filename]
+			else:
+				for k in list(cache.keys())[:-len(input_)]:
+					del cache[k]
+				#print('<- ' + filename)
+				try: d = ds.read(filename, ['time', 'input_sic'])
+				except OSError: continue
+				cache[filename] = d
+			j = np.argmin(np.abs(d['time'] - t))
+			dt = d['time'][j] - t
+			if dt*24 > 6: continue
+			if (d_surf['sic'][i] > threshold) == \
+			   (d['input_sic'][j] > threshold):
+				mask[i] += 1
 
-	time1 = d1['time']
-	time2 = d2['time']
-
-	if year is not None:
-		time1 = coerce_time(time1, year)
-		time2 = coerce_time(time2, year)
-
-	n = ds.dim(d1, 'time')
-	mask = np.zeros(n, bool)
-	for i in range(n):
-		t = time1[i]
-		j = np.argmin(np.abs(time2 - t))
-		if np.abs(time2[j] - t) > 6/24:
-			print('time %s not found' % aq.to_iso(t), file=sys.stderr)
-			continue
-		mask[i] = sic1[i] == sic2[j]
-
-	time_bnds = mask_to_intervals(mask, d1['time'])
+	mask = mask == len(input_)
+	time_bnds = mask_to_intervals(mask, d_surf['time'])
 
 	ds.write(output, {
 		'time_bnds': time_bnds,
@@ -100,3 +84,5 @@ if __name__ == '__main__':
 			},
 		},
 	})
+
+	print('-> ' + output)

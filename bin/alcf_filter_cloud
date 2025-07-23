@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+'''Create an ALCF filter for cloud at a given height.
+
+Usage: alcf_filter_cloud INPUT... HEIGHT OUTPUT
+
+Arguments:
+
+  INPUT   Input file or a directory - the output of "alcf lidar" (NetCDF).
+  HEIGHT  Height to determine cloud at (m). The first column of the cloud mask is used.
+  OUTPUT  Output file (NetCDF)
+'''
+
+import sys
+import os
+import numpy as np
+import ds_format as ds
+
+def mask_to_intervals(mask, time):
+	ii = np.where(mask)[0]
+	if len(ii) == 0:
+		return []
+	mask2 = np.diff(ii)	> 1
+	jj = np.where(mask2)[0]
+	intervals = []
+	i1 = ii[0]
+	for j in jj:
+		i2 = ii[j]
+		intervals += [[time[i1], time[i2]]]
+		i1 = ii[j+1]
+	intervals += [[time[i1], time[ii[-1]]]]
+	return intervals
+
+def process(filename):
+	print('<- %s' % filename)
+	d = ds.read(filename)
+	n = ds.dim(d, 'time')
+	l = ds.dim(d, 'column')
+	mask = np.full(n, np.nan, np.float64)
+	j = np.argmin(np.abs(d['zfull'] - height))
+	for i in range(n):
+		mask[i] = d['cloud_mask'][i,j,0] if l != 0 else d['cloud_mask'][i,j]
+	return mask_to_intervals(mask, d['time'])
+
+if __name__ == '__main__':
+	if len(sys.argv) < 4:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	input_ = sys.argv[1:-2]
+	height = float(sys.argv[-2])
+	output = sys.argv[-1]
+	
+	time_bnds = []
+	for input1 in input_:
+		if os.path.isdir(input1):
+			files = sorted(os.listdir(input1))
+			for file in files:
+				time_bnds += process(os.path.join(input1, file))
+		else:
+			time_bnds += process(input1)
+
+	print('-> %s' % output)
+	ds.write(output, {
+		'time_bnds': time_bnds,
+		'.': {
+			'time_bnds': {
+				'.dims': ['time', 'bnds'],
+				'standard_name': 'time',
+				'long_name': 'time bounds',
+				'units': ds.drivers.netcdf.JD_UNITS,
+				'calendar': ds.drivers.netcdf.JD_CALENDAR,
+			},
+		},
+	})

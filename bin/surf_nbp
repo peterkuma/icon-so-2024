@@ -16,7 +16,12 @@ import numpy as np
 import scipy.io
 import aquarius_time as aq
 
+def interp(time, x):
+	mask = ~np.isnan(x)
+	return np.interp(time, time[mask], x[mask])
+
 def read_nbp(filename):
+	print('<- %s' % filename)
 	d = scipy.io.loadmat(filename)
 	n = len(d['yys'])
 	date = (
@@ -32,8 +37,10 @@ def read_nbp(filename):
 	time = aq.from_date(date)
 	lat = d['lats'][:,0]
 	lon = d['lons'][:,0]
-	temp = d['airtemps'][:,0] + 273.15
-	sst = d['SSTs'][:,0] + 273.15
+	tas = d['airtemps'][:,0] + 273.15
+	ts = d['SSTs'][:,0] + 273.15
+	wdds = interp(time, d['wdir'][:,0])
+	wdss = interp(time, d['wspd'][:,0])
 
 	mask = (~np.isnan(time)) & \
 		(~np.isnan(lon)) & \
@@ -43,8 +50,10 @@ def read_nbp(filename):
 		'lat': lat[mask],
 		'lon': lon[mask],
 		'time': time[mask],
-		'tas': temp[mask],
-		'ts': sst[mask],
+		'tas': tas[mask],
+		'ts': ts[mask],
+		'wdds': wdds[mask],
+		'wdss': wdss[mask],
 		'.': {
 			'lat': {
 				'.dims': ['time'],
@@ -72,6 +81,18 @@ def read_nbp(filename):
 				'standard_name': 'sea_surface_temperature',
 				'units': 'K',
 			},
+			'wdds': {
+				'.dims': ['time'],
+				'long_name': 'near-surface wind from direction',
+				'standard_name': 'wind_from_direction',
+				'units': 'degree',
+			},
+			'wdss': {
+				'.dims': ['time'],
+				'long_name': 'near-surface wind speed',
+				'standard_name': 'wind_speed',
+				'units': 'm s-1',
+			},
 		},
 	}
 
@@ -80,8 +101,9 @@ if __name__ == '__main__':
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
 
-	input_filename = sys.argv[1]
-	output_filename = sys.argv[2]
+	input_= sys.argv[1]
+	output = sys.argv[2]
 
-	d = read_nbp(input_filename)
-	ds.to_netcdf(output_filename, d)
+	d = read_nbp(input_)
+	print('-> %s' % output)
+	ds.write(output, d)

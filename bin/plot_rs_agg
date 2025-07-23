@@ -1,18 +1,37 @@
 #!/usr/bin/env python3
 '''Plot radiosonde statistics.
 
-Usage: plot_rs_agg TYPE INPUT... LABEL... OUTPUT
+Usage: plot_rs_agg TYPE INPUT... LABEL... T1 T2 R1 R2 Z1 Z2 OUTPUT
 
 Arguments:
 
-  TYPE    One of: "theta_hur" (potential temperature) or "lcl" (LCL).
+  TYPE    One of: "thetav_hur" (potential temperature) or "lcl" (LCL).
   INPUT   Input directory - the output of rs_stats (NetCDF). If subdirectories are present, they are expected to be multiple years to be aggregated.
   LABEL   Input label.
+  T1      Start temperature (C).
+  T2      End temperature (C).
+  R1      Start relative humidity (%).
+  R2      End relative humidity (%).
+  Z1      Start height (m).
+  Z2      End height (m).
   OUTPUT  Output file (PDF).
+
+Options:
+
+  label: VALUE         Plot label. One of: "true" or "false". Default: "true".
+  legend: VALUE        Plot legend. One of: "true" or "false". Default: "true".
+  legend_loc: VALUE    Legend location. Default: "none".
+  panel_number: VALUE  Panel number. Default: "none".
+  rfo_ref: VALUE       RFO reference directory (NetCDF). Default: "none".
+  suptitle: VALUE      Plot suptitle. Default: "none".
+  title: VALUE         Plot title. Default: "none".
+  xlabel: VALUE        Plot x-label. One of: "true" or "false". Default: "true".
+  ylabel: VALUE        Plot y-label. One of: "true" or "false". Default: "true".
 '''
 
 import sys
 import os
+import string
 import pst
 import datetime as dt
 import numpy as np
@@ -56,6 +75,7 @@ def read(dirname):
 	hur = []
 	lcl = None
 	lcl_hist = []
+	n = 0
 
 	years = get_years(dirname)
 	for y in years:
@@ -65,21 +85,22 @@ def read(dirname):
 			if not file.endswith('.nc'):
 				continue
 			filename = os.path.join(dirname2, file)
-			print('<- %s' % filename)
+			#print('<- %s' % filename)
 			d = ds.read(filename)
 			zg = d['zg']
 			theta += [d['thetav_avg']]
 			hur += [d['hur_avg']]
 			lcl = d['lcl']
 			lcl_hist += [d['lcl_hist']/np.sum(d['lcl_hist'])]
+			n += d['n']
 
-	theta_m = np.mean(theta, axis=0)
-	theta_low = np.percentile(theta, 16, axis=0)
-	theta_high = np.percentile(theta, 84, axis=0)
-	hur_m = np.mean(hur, axis=0)
-	hur_low = np.percentile(hur, 16, axis=0)
-	hur_high = np.percentile(hur, 84, axis=0)
-	lcl_hist_avg = np.mean(lcl_hist, axis=0)
+	theta_m = np.nanmean(theta, axis=0)
+	theta_low = np.nanpercentile(theta, 16, axis=0)
+	theta_high = np.nanpercentile(theta, 84, axis=0)
+	hur_m = np.nanmean(hur, axis=0)
+	hur_low = np.nanpercentile(hur, 16, axis=0)
+	hur_high = np.nanpercentile(hur, 84, axis=0)
+	lcl_hist_avg = np.nanmean(lcl_hist, axis=0)
 
 	return {
 		'zg': zg,
@@ -91,9 +112,20 @@ def read(dirname):
 		'hur_high': hur_high,
 		'lcl': lcl,
 		'lcl_hist_avg': lcl_hist_avg,
+		'n': n,
 	}
 
-def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
+def plot_thetav_hur(dirname, label,
+	t1=-10,
+	t2=40,
+	r1=25,
+	r2=100,
+	z1=0,
+	z2=5000,
+	color='k',
+	linestyle='solid',
+	opts={},
+):
 	d = read(dirname)
 
 	plt.subplot(1, 2, 1)
@@ -101,6 +133,7 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 		label=label,
 		color=color,
 		linestyle=linestyle,
+		lw=1.8,
 	)
 	plt.fill_betweenx(
 		d['zg']*1e-3,
@@ -108,7 +141,7 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 		d['theta_high'] - 273.15,
 		color=color,
 		edgecolor='none',
-		alpha=0.15,
+		alpha=0.05,
 	)
 	plt.plot(d['theta_low'] - 273.15, d['zg']*1e-3,
 		color=color,
@@ -120,21 +153,39 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 		linestyle=linestyle,
 		lw=0.5,
 	)
-	plt.xlim(-10, 40)
-	plt.ylim(0, 5)
-	plt.xlabel('$\\theta_v$ (°C)')
-	plt.ylabel('Height (km)')
-	plt.legend(loc='lower right', borderaxespad=0)
+	plt.xlim(t1, t2)
+	plt.ylim(z1*1e-3, z2*1e-3)
+	if opts['xlabel']:
+		plt.xlabel('$\\theta_v$ (°C)')
+	if opts['ylabel']:
+		plt.ylabel('Height (km)')
+	#else:
+	#	plt.gca().set_yticklabels([])
+
+	if label == 'OBS':
+		misc_text = ''
+		misc_text += '%d profiles\n' % d['n']
+		if opts['rfo_ref'] is not None:
+			dd = ds.readdir(opts['rfo_ref'], ['n'])
+			n_ref = np.nansum([d['n'] for d in dd])
+			misc_text += 'RFO = %d%%\n' % round(d['n']/n_ref*100)
+		plt.text(0.02, 0.98, misc_text,
+			transform=plt.gca().transAxes,
+			fontsize=9,
+			va='top',
+		)
 
 	plt.subplot(1, 2, 2)
 	plt.plot(d['hur_m'], d['zg']*1e-3,
 		color=color,
 		linestyle=linestyle,
+		label=label,
+		lw=1.8
 	)
 	plt.fill_betweenx(d['zg']*1e-3, d['hur_low'], d['hur_high'],
 		color=color,
 		edgecolor='none',
-		alpha=0.15,
+		alpha=0.05,
 	)
 	plt.plot(d['hur_low'], d['zg']*1e-3,
 		color=color,
@@ -146,15 +197,31 @@ def plot_theta_hur(dirname, label, color='k', linestyle='solid'):
 		linestyle=linestyle,
 		lw=0.5,
 	)
-	plt.xlim(25, 100)
+	plt.xlim(r1, r2)
 	plt.gca().set_xticks(np.arange(25, 125, 25))
-	plt.ylim(0, 5)
-	plt.xlabel('RH (%)')
+	plt.ylim(z1*1e-3, z2*1e-3)
+	if opts['xlabel']:
+		plt.xlabel('RH (%)')
 	plt.gca().yaxis.set_ticklabels([])
-
+	
+	if opts['legend']:
+		legend = plt.legend(loc=opts['legend_loc'],
+			borderaxespad=0,
+			handlelength=1.5,
+			handletextpad=0.5,
+		)
+		for obj in legend.legendHandles:
+			obj.set_linewidth(1.2)
+	
 	plt.subplots_adjust(wspace=0.15)
 
-def plot_lcl(dirname, label, color='k', linestyle='solid'):
+def plot_lcl(dirname, label,
+	z1=0,
+	z2=5000,
+	color='k',
+	linestyle='solid',
+	opts={},
+):
 	d = read(dirname)
 	plt.plot(d['lcl_hist_avg']*100, d['lcl']*1e-3,
 		label=label,
@@ -164,40 +231,73 @@ def plot_lcl(dirname, label, color='k', linestyle='solid'):
 	)
 	plt.xlim(0, 32)
 	plt.xticks(np.arange(0, 40, 10))
-	plt.ylim(0, 5)
-	plt.xlabel('LCL frequency (%)')
-	plt.ylabel('Height (km)')
-	plt.legend(loc='upper right')
+	plt.ylim(z1*1e-3, z2*1e-3)
+	if opts['xlabel']:
+		plt.xlabel('LCL frequency (%)')
+	if opts['ylabel']:
+		plt.ylabel('Height (km)')
+	else:
+		plt.gca().set_yticklabels([])
+	if opts['legend']:
+		plt.legend(loc=opts['legend_loc'])
 
 if __name__ == '__main__':
-	if len(sys.argv) < 5:
+	args, opts = pst.decode_argv(sys.argv, as_unicode=True)
+	if len(args) < 11:
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
-	type_ = sys.argv[1]
-	n = (len(sys.argv) - 3)//2
-	input_ = sys.argv[2:(2+n)]
-	labels = sys.argv[(2+n):-1]
-	output = sys.argv[-1]
+	type_ = args[1]
+	n = (len(args) - 9)//2
+	input_ = args[2:(2+n)]
+	labels = args[(2+n):-7]
+	t1 = float(args[-7])
+	t2 = float(args[-6])
+	r1 = float(args[-5])
+	r2 = float(args[-4])
+	z1 = float(args[-3])
+	z2 = float(args[-2])
+	output = args[-1]
+	opts.setdefault('label', True)
+	opts.setdefault('legend', True)
+	opts.setdefault('legend_loc', None)
+	opts.setdefault('panel_number', None)
+	opts.setdefault('rfo_ref', None)
+	opts.setdefault('title', None)
+	opts.setdefault('xlabel', True)
+	opts.setdefault('ylabel', True)
+	opts.setdefault('suptitle', True)
 
 	if len(input_) != len(labels):
 		raise ValueError('the number of labels must be the same as the number of inputs')
 
-	if type_ == 'theta_hur':
-		plt.figure(figsize=(4, 4))
+	if type_ == 'thetav_hur':
+		plt.figure(figsize=(4, 3))
 		for i, (dirname, label) in enumerate(zip(input_, labels)):
-			plot_theta_hur(dirname, label,
+			plot_thetav_hur(dirname, label, t1, t2, r1, r2, z1, z2,
 				color=COLOR[i],
 				linestyle=LINESTYLE[i],
+				opts=opts,
 			)
 	elif type_ == 'lcl':
 		plt.figure(figsize=(2, 4))
-		for i, (dirname, label) in enumerate(zip(input_, labels)):
-			plot_lcl(dirname, label,
+		for i in ([0] + list(range(1, len(input_))[::-1])):
+			plot_lcl(input_[i], labels[i], z1, z2,
 				color=COLOR[i],
 				linestyle=LINESTYLE[i],
+				opts=opts,
 			)
 	else:
 		raise ValueError('invalid type "%s"' % type_)
 
+	if opts['title'] is not None:
+		plt.title(opts['title'], y=0.9)
+
+	suptitle = ''
+	if opts['panel_number'] is not None:
+		suptitle += '(%s) ' % string.ascii_lowercase[opts['panel_number']]
+	if opts['suptitle'] is not None:
+		suptitle += opts['suptitle']
+	plt.suptitle(suptitle, y=0.95, fontweight='bold', fontsize=10)
+
 	print('-> %s' % output)
-	plt.savefig(output, bbox_inches='tight', dpi=600)
+	plt.savefig(output, bbox_inches='tight', pad_inches=0.05)

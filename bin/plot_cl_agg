@@ -5,10 +5,16 @@ Usage: plot_cl_agg OBS MODEL... LABEL... OUTPUT
 
 Arguments:
 
-  OBS     Input directory with observational data output by alcf stats (NetCDF).
-  MODEL   Input directory - the output of alcf stats (NetCDF). If subdirectories are present, they are expected to be multiple years to be aggregated.
+  OBS     Input directory with observational data - the output of alcf stats (NetCDF).
+  MODEL   Input directory with model data- the output of alcf stats (NetCDF). If subdirectories are present, they are expected to be multiple years to be aggregated.
   LABEL   Model label.
   OUTPUT  Output plot (PDF).
+
+Options:bin/plot_cl_agg
+
+  rfo_ref: VALUE       RFO reference directory (NetCDF). Default: "none".
+  xlabel: VALUE        Plot x-label. One of: "true" or "false". Default: "true".
+  ylabel: VALUE        Plot y-label. One of: "true" or "false". Default: "true".
 '''
 
 import os
@@ -17,7 +23,9 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import pst
 import ds_format as ds
+import string
 
 COLOR = ['k', '#0084C8', '#009100', '#DC0000']
 LINESTYLE = ['solid', 'dashed', 'dotted', 'dashdot']
@@ -53,19 +61,23 @@ def get_sources(dirname):
 		return set([x for x in os.listdir(dirname2) if x.endswith('.nc')])
 
 def read(filename):
-	print('<- %s' % filename)
+	#print('<- %s' % filename)
 	return ds.read(filename)
 
 if __name__ == '__main__':
-	if len(sys.argv) < 3:
+	args, opts = pst.decode_argv(sys.argv, as_unicode=True)
+	if len(args) < 3:
 		sys.stderr.write(sys.modules['__main__'].__doc__)
 		sys.exit(1)
-	n = (len(sys.argv) - 3)//2
+	n = (len(args) - 3)//2
 	n2 = n + 1
-	obs = sys.argv[1]
-	models = sys.argv[2:(2 + n)]
-	labels = sys.argv[(2 + n):-1]
-	output = sys.argv[-1]
+	obs = args[1]
+	models = args[2:(2 + n)]
+	labels = args[(2 + n):-1]
+	output = args[-1]
+	opts.setdefault('rfo_ref', None)
+	opts.setdefault('xlabel', True)
+	opts.setdefault('ylabel', True)
 
 	if len(models) != len(labels):
 		raise ValueError('number of models and labels must be the same')
@@ -92,13 +104,14 @@ if __name__ == '__main__':
 
 	zfull = None
 
+	time_total = 0
 	for i, source in enumerate(sources):
-		for y in get_years(obs):
-			obs_filename = os.path.join(obs, y, source)
-			d_obs = read(obs_filename)
-			for var in VARS:
-				x[var][0] += [d_obs[var]]
-			zfull = d_obs['zfull']
+		obs_filename = os.path.join(obs, '', source)
+		d_obs = read(obs_filename)
+		for var in VARS:
+			x[var][0] += [d_obs[var]]
+		zfull = d_obs['zfull']
+		time_total += d_obs['time_total']
 
 		for j, mod in enumerate(models):
 			for y in get_years(mod):
@@ -109,9 +122,6 @@ if __name__ == '__main__':
 						x[var][j+1] += [d_mod[var][:,0]]
 					else:
 						x[var][j+1] += [d_mod[var][0]]
-
-	#days_obs = d_obs['time_total']/(24*60*60)
-	#days_model = d_mod['time_total'][0]/(24*60*60)
 
 	for i in range(n2):
 		mask = np.array(x['time_total'][i]) >= 7*24*60*60
@@ -124,8 +134,9 @@ if __name__ == '__main__':
 
 	plt.figure(figsize=(4, 4))
 
-	for i in range(n2):
-		line = plt.gca().plot(xm['cl'][i], zfull*1e-3,
+	lines = []
+	for i in ([0] + list(range(1, n2))[::-1]):
+		line, = plt.gca().plot(xm['cl'][i], zfull*1e-3,
 			color=COLOR[i],
 			linestyle=LINESTYLE[i],
 			lw=1.5,
@@ -138,6 +149,7 @@ if __name__ == '__main__':
 				xm['input_rlut_avg'][i],
 			)),
 		)
+		lines += [line]
 
 		plt.fill_betweenx(zfull*1e-3, xl['cl'][i], xh['cl'][i],
 			color=COLOR[i],
@@ -149,9 +161,29 @@ if __name__ == '__main__':
 	plt.gca().set_yticks(np.arange(0, 6, 1))
 	plt.xlim(0, 40)
 	plt.ylim(0, 5)
-	plt.legend(handlelength=1, bbox_to_anchor=[1, 1], borderaxespad=0)
-	plt.xlabel('Cloud occurrence (%)')
-	plt.ylabel('Height (km)')
+	handles = [lines[0]] + lines[1:][::-1]
+	plt.legend(handles=handles,
+		handlelength=1,
+		bbox_to_anchor=[1, 1],
+		borderaxespad=0
+	)
+	if opts['xlabel']:
+		plt.xlabel('Cloud occurrence (%)')
+	if opts['ylabel']:
+		plt.ylabel('Height (km)')
+
+	misc_text = ''
+	if opts['rfo_ref'] is not None:
+		dd = ds.readdir(opts['rfo_ref'], ['time_total'])
+		time_total_ref = np.nansum([d['time_total'] for d in dd])
+		misc_text += 'RFO = %d%%\n' % round(time_total/time_total_ref*100)
+	misc_text += '%d days' % (time_total/(24*60*60))
+	plt.text(0.98, 0.72, misc_text,
+		transform=plt.gca().transAxes,
+		fontsize=12,
+		ha='right',
+		va='top',
+	)
 
 	print('-> %s' % output)
-	plt.savefig(output, bbox_inches='tight')
+	plt.savefig(output, bbox_inches='tight', pad_inches=0.05)

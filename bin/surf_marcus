@@ -10,8 +10,16 @@ Arguments:
 '''
 
 import sys
+import numpy as np
 import ds_format as ds
 import aquarius_time as aq
+
+def avg_angle(a, b):
+	ar = a/180*np.pi
+	br = b/180*np.pi
+	x = 0.5*(np.cos(ar) + np.cos(br))
+	y = 0.5*(np.sin(ar) + np.sin(br))
+	return 180/np.pi*np.arctan2(y, x) % 360
 
 if __name__ == '__main__':
 	if len(sys.argv) < 3:
@@ -31,6 +39,8 @@ if __name__ == '__main__':
 		'ps': d['atm_press_hpa']*100,
 		'ts': d['temp_sea_wtr_degc'] + 273.15,
 		'tas': (d['temp_air_port_degc'] + d['temp_air_strbrd_degc'])*0.5 + 273.15,
+		'wdds': avg_angle(d['wnd_dir_port_corr_deg'], d['wnd_dir_strbrd_corr_deg']),
+		'wdss': (d['wnd_spd_port_corr_knot'] + d['wnd_spd_strbrd_corr_knot'])*0.5,
 		'.': {
 			'time': {
 				'.dims': ['time'],
@@ -70,6 +80,18 @@ if __name__ == '__main__':
 				'standard_name': 'surface_air_pressure',
 				'long_name': 'surface air pressure',
 				'units': 'Pa',
+			},
+			'wdds': {
+				'.dims': ['time'],
+				'long_name': 'near-surface wind from direction',
+				'standard_name': 'wind_from_direction',
+				'units': 'degree',
+			},
+			'wdss': {
+				'.dims': ['time'],
+				'long_name': 'near-surface wind speed',
+				'standard_name': 'wind_speed',
+				'units': 'm s-1',
 			},
 		}
 	}

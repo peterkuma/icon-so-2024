@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 '''Plot geographical distribution.
 
-Usage: plot_geo_dist TYPE INPUT1 [INPUT2] OUTPUT
+Usage: plot_geo_dist TYPE INPUT1 [INPUT2] TRACKS OUTPUT
 
 Arguments:
 
   TYPE    One of: "cyc" (cyclone), "stab" (stability), or a variable name.
   INPUT1  Input directory - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
   INPUT2  Input reference directory - the output of calc_cyc_dist or calc_lts_dist (NetCDF).
+  TRACKS  Directory with voyage tracks (NetCDF).
   OUTPUT  Output plot (PDF).
 '''
 
@@ -96,13 +97,45 @@ def read(dirname):
 def regrid(x, lon1, lat1, lon2, lat2):
 	raise NotImplementedError()
 
+def plot_point(lon, lat):
+	plt.scatter(lon, lat,
+		transform=ccrs.PlateCarree(),
+		marker='o',
+		s=15,
+		edgecolors='k',
+		facecolors='none',
+		alpha=0.5,
+	)			
+
+def plot_track(time, lon, lat):
+	mask = ~np.isnan(lon) & ~np.isnan(lat)
+	time = time[mask]
+	lon = lon[mask]
+	lat = lat[mask]
+	dt = np.diff(time)
+	dlon = np.diff(lon)
+	m1 = dt > 6/24
+	m2 = np.abs(dlon) > 10
+	ii = np.where(m1 | m2)[0]
+	ii = np.concatenate([[0], ii + 1, [len(time)]])
+	for j in range(len(ii) - 1):
+		a = ii[j]
+		b = ii[j + 1]
+		plt.plot(lon[a:b], lat[a:b],
+			transform=ccrs.PlateCarree(),
+			color='k',
+			lw=0.3,
+			alpha=0.5,
+		)
+
 if __name__ == '__main__':
 	if len(sys.argv) < 4:
 		sys.stderr.write(sys.modules[__name__].__doc__)
 		sys.exit(1)
 
 	type_ = sys.argv[1]
-	input_ = sys.argv[2:-1]
+	input_ = sys.argv[2:-2]
+	tracks = sys.argv[-2]
 	output = sys.argv[-1]
 
 	if len(input_) not in [1, 2]:
@@ -172,5 +205,12 @@ if __name__ == '__main__':
 		ea.set_text(' ' + ea.get_text())
 		if (pos[0]==150):
 			ea.set_position([0, pos[1] + 2])
+
+	dd = ds.readdir(tracks)
+	for d in dd:
+		if np.all(d['lon'] == d['lon'][0]) and np.all(d['lat'] == d['lat'][0]):
+			plot_point(d['lon'][0], d['lat'][0])
+		else:
+			plot_track(d['time'], d['lon'], d['lat'])
 
 	plt.savefig(output, bbox_inches='tight', dpi=600)
