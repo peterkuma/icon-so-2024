@@ -346,35 +346,6 @@ Requires: `download_era5`
 Run ALCF on the ERA5 input data under `input/era5` to produce simulated
 backscatter. The output is stored under `data/era5/samples`.
 
-### recalib_obs
-
-Requires: `alcf_obs`
-
-Recalibrate observations. This changes the cloud threshold and assumed
-backscatter noise standard deviation. The output is stored under
-`data/obs/samples/*/lidar_recalib_bsd`.
-
-### recalib_model
-
-Requires: `alcf_model_levante`
-
-The same as `recalib_obs`, but for ICON. The output is stored under
-`data/`*model*`/samples_recalib_bsd`.
-
-### recalib_merra2
-
-Requires: `alcf_merra2`
-
-The same as `recalib_obs`, but for MERRA-2. The output is stored under
-`data/merra2/samples_recalib_bsd`.
-
-### recalib_era5
-
-Requires: `alcf_era5`
-
-The same as `recalib_obs`, but for ERA5. The output is stored under
-`data/era5/samples_recalib_bsd`.
-
 ### alcf_ceres
 
 Augment the ALCF output for observations with radiation data from CERES.
@@ -411,27 +382,51 @@ The same as `filter_lts_model`, but for MERRA-2.
 
 The same as `filter_lts_model`, but for ERA5.
 
+### filter_cloud_obs
+
+Requires: `alcf_obs`
+
+Create an ALCF filter for clouds at a given heights.
+
+### filter_cloud_model
+
+Requires: `alcf_model`
+
+The same as `filter_cloud_obs`, but for the model.
+
+### filter_cloud_merra2
+
+Requires: `alcf_merra2`
+
+The same as `filter_cloud_obs`, but for the MERRA-2.
+
+### filter_cloud_era5
+
+Requires: `alcf_era5`
+
+The same as `filter_cloud_obs`, but for the ERA5.
+
 ### stats_obs
 
-Requires: `recalib_obs`
+Requires: `alcf_obs`
 
 Calculate statistics for observations.
 
 ### stats_model
 
-Requires: `recalib_model`, `filter_model`, `filter_cyc_model`, `filter_lts_model`
+Requires: `alcf_model_levante`, `filter_model`, `filter_cyc_model`, `filter_lts_model`
 
 Calculate statistics for the model.
 
 ### stats_merra2
 
-Requires: `recalib_merra2`, `filter_merra2`, `filter_cyc_era5`, `filter_lts_merra2`
+Requires: `alcf_merra2`, `filter_merra2`, `filter_cyc_era5`, `filter_lts_merra2`
 
 Calculate statistics for MERRA-2.
 
 ### stats_era5
 
-Requires: `recalib_era5`, `filter_era5`, `filter_cyc_era5`, `filter_lts_era5`
+Requires: `alcf_era5`, `filter_era5`, `filter_cyc_era5`, `filter_lts_era5`
 
 Calculate statistics for ERA5.
 
@@ -505,6 +500,24 @@ The same as `rs_stats_obs`, but for ERA5.
 Requires: `rs_stats_obs`, `rs_stats_model`, `rs_stats_merra2`, `rs_stats_era5`
 
 Plot aggregated radiosonde statistics. The output is stored in `plot/rs_agg`.
+
+### plot_rs_1d_hist
+
+Requires: `rs_stats_obs`, `rs_stats_model`, `rs_stats_merra2`, `rs_stats_era5`
+
+Plot 1D stats histograms for radiosonde profiles.
+
+### rs_stats_hist
+
+Requires: `alcf_obs`, `alcf_model`, `alcf_merra2`, `alcf_era5`, `rs_obs`, `rs_model`, `rs_merra2`, `rs_era5`
+
+Calculate radiosonde histograms.
+
+### plot_rs_2d_hist
+
+Requires: `rs_stats_hist`
+
+Plot 2D radiosonde histograms.
 
 ## Miscellaneous commands
 

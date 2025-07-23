@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-'''Plot ALCF stats histograms for radiation and water path.
+'''Plot stats histograms for radiation, water path, lower tropospheric stability, near-surface relative humidity, and near-surface air temperature.
 
 plot_stats_hist VAR INPUT... LABEL... OUTPUT
 
 Arguments:
 
-  VAR     Variable. One of: "rsut", "rlut", "clivi", or "clwvi".
-  INPUT   Input directory - the output of alcf stats (NetCDF).
+  VAR     Variable. One of: "rsut", "rlut", "clivi", "clwvi", "lts", "hurs", or "tas".
+  INPUT   Input directory - the output of alcf stats or rs_stats_hist (NetCDF).
   LABEL   Input label. The number of labels must be the same as the number of inputs.
   OUTPUT  Output plot (PDF).
   
