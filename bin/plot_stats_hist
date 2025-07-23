@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+'''Plot ALCF stats histograms for radiation and water path.
+
+plot_stats_hist VAR INPUT... LABEL... OUTPUT
+
+Arguments:
+
+  VAR     Variable. One of: "rsut", "rlut", "clivi", or "clwvi".
+  INPUT   Input directory - the output of alcf stats (NetCDF).
+  LABEL   Input label. The number of labels must be the same as the number of inputs.
+  OUTPUT  Output plot (PDF).
+  
+Options:
+
+	legend: VALUE            Plot legend. One of: "true" or "false". Default: "true".
+	ylabel: VALUE            Plot y-label. One of: "true" or "false". Default: "true".
+	panel_number: VALUE      Panel number.
+	panel_number_loc: VALUE  Panel number location. One of: "left" or "right". Default: "right".
+	legend_loc: VALUE        Legend location.
+'''
+
+import sys
+import os
+import glob
+import pst
+import string
+import numpy as np
+import ds_format as ds
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+
+mpl.rc('font', family='Open Sans')
+mpl.rc('axes', linewidth=0.3)
+#mpl.rc('axes', grid=True)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('xtick.major', width=0.3)
+mpl.rc('ytick.major', width=0.3)
+mpl.rc('legend', framealpha=1)
+mpl.rc('legend', facecolor='#eeeeee')
+mpl.rc('legend', edgecolor='none')
+mpl.rc('legend', fancybox=False)
+mpl.rc('legend', fontsize=8)
+mpl.rc('grid', color='k')
+mpl.rc('grid', alpha=0.2)
+mpl.rc('grid', lw=0.1)
+
+COLUMN = 0
+
+COLOR = ['#bbbbbb', '#0084C8', '#009100', '#DC0000']
+AVG_COLOR = ['k', '#0084C8', '#009100', '#DC0000']
+LINESTYLE = ['solid', 'dashed', 'dotted', 'dashdot']
+MARKER = [None, 'o', 's', 'D']
+
+TITLE = {
+	'input_rsut': 'Outgoing SW radiation at TOA (W m$^{-2}$)',
+	'input_rlut': 'Outgoing LW radiation at TOA (W m$^{-2}$)',
+	'input_clwvi': 'Liquid water path (kg m$^{-2}$)',
+	'input_clivi': 'Ice water path (kg m$^{-2}$)',
+	'lts': 'Lower tropospheric stability (K)',
+	'hurs': 'Near-surface relative humidity (%)',
+	'tas': 'Near-surface air temperature (°C)',
+}
+
+XLIM = {
+	'input_rsut': [0, 400],
+	'input_rlut': [150, 300],
+	'input_clwvi': [0, 0.3],
+	'input_clivi': [0, 0.3],
+	'lts': [0, 30],
+	'hurs': [0, 100],
+	'tas': [-30, 30],
+}
+
+def half(xfull):
+	xhalf = np.zeros(len(xfull) + 1, dtype=xfull.dtype)
+	xhalf[1:-1] = 0.5*(xfull[1:] + xfull[:-1])
+	xhalf[0] = 1.5*xfull[0] - 0.5*xfull[1]
+	xhalf[-1] = 1.5*xfull[-1] - 0.5*xfull[-2]
+	return xhalf
+	
+def full(xhalf):
+	return 0.5*(xhalf[1:] + xhalf[:-1])
+
+def read(dirname, var):
+	var_full = var + '_full'
+	var_full_alt = var
+	var_half = var + '_half'
+	var_hist = var + '_hist'
+	var_avg = var + '_avg'
+	xfull = None
+	xhalf = None
+	hist = None
+	avg = None
+	n = 0
+	n_avg = 0
+	for file in glob.glob('**/*.nc', recursive=True, root_dir=dirname):
+		filename = os.path.join(dirname, file)
+		#print('<- %s' % filename)
+		d = ds.read(filename)
+		if var_half in d:
+			xhalf1 = d[var_half]
+			xfull1 = full(xhalf1)
+		else:
+			xfull1 = d[var_full] if var_full in d else d[var_full_alt]
+			xhalf1 = half(xfull1)
+		if \
+			xfull is not None and \
+			not np.array_equal(xfull1, xfull) or \
+			xhalf is not None and \
+			not np.array_equal(xhalf1, xhalf):
+			raise IOError('%s: inconsistent bins' % filename)
+		xfull = xfull1
+		xhalf = xhalf1
+		hist1 = d[var_hist]
+		if hist1.ndim == 2:
+			hist1 = hist1[:,COLUMN]
+		hist1 = hist1/np.sum(hist1)
+		hist = hist1 if hist is None else hist + hist1
+		if var_avg in d:
+			avg1 = d[var_avg]
+			if isinstance(avg1, np.ndarray):
+				avg1 = avg1[COLUMN]
+			avg = avg1 if avg is None else avg + avg1
+			n_avg += 1
+		n += 1
+	hist = hist/np.sum(hist)
+	if n_avg > 0:
+		avg /= n
+	if var == 'tas':
+		xfull -= 273.15
+		xhalf -= 273.15
+	return xfull, xhalf, hist, avg
+
+if __name__ == '__main__':
+	args, opts = pst.decode_argv(sys.argv, as_unicode=True)
+	n = len(args) - 3
+	if len(args) < 4 or n % 2 != 0:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
+	var = args[1]
+	input_ = args[2:(2 + n//2)]
+	labels = args[(2 + n//2):-1]
+	output = args[-1]
+
+	opts.setdefault('legend', True)
+	opts.setdefault('ylabel', True)
+	opts.setdefault('panel_number', None)
+	opts.setdefault('panel_number_loc', 'right')
+	opts.setdefault('legend_loc', 'center right')
+
+	legend = []
+	
+	plt.figure(figsize=(4, 3))
+	
+	xfull, xhalf, hist, avg = read(input_[0], var)
+	width = xhalf[1] - xhalf[0]
+	plt.bar(xfull, hist,
+		color=COLOR[0],
+		width=width,
+		zorder=-1,
+	)
+	legend += [Patch(color=COLOR[0], label=labels[0])]
+
+	if avg is not None:
+		plt.axvline(avg, color=AVG_COLOR[0], lw=1, linestyle=LINESTYLE[0])
+		legend += [Line2D([0], [0],
+			color=AVG_COLOR[0],
+			linestyle=LINESTYLE[0],
+			label=labels[0] + ' average',
+		)]
+
+	for i, dirname in enumerate(input_[1:]):
+		try: xfull, xhalf, hist, avg = read(dirname, var)
+		except IOError as e:
+			print(e, file=sys.stderr)
+			continue
+		line, = plt.plot(
+			xhalf,
+			np.append(hist, 0),
+			drawstyle='steps-post',
+			color=COLOR[i + 1],
+			lw=1,
+		)
+		plt.scatter(xfull, hist,
+			marker=MARKER[i + 1],
+			color=COLOR[i + 1],
+			s=4,
+		)
+		legend += [Line2D([0], [0],
+			color=COLOR[i + 1],
+			marker=MARKER[i + 1],
+			label=labels[i + 1],
+			markersize=5
+		)]
+		if avg is not None:
+			plt.axvline(avg, color=AVG_COLOR[i + 1], lw=1, linestyle=LINESTYLE[i + 1])
+			legend += [Line2D([0], [0],
+				color=AVG_COLOR[i + 1],
+				linestyle=LINESTYLE[i + 1],
+				label=labels[i + 1] + ' average',
+			)]
+		if opts['panel_number'] is not None:
+			xloc = 0.99 if opts['panel_number_loc'] == 'right' else 0.01
+			plt.text(xloc, 0.98, \
+				'(%s)' % string.ascii_lowercase[opts['panel_number']],
+				transform=plt.gca().transAxes,
+				horizontalalignment=opts['panel_number_loc'],
+				verticalalignment='top',
+				fontweight='bold',
+			)
+
+	xlim = XLIM[var]
+	ylim = plt.gca().get_ylim()
+	plt.xlim(xlim)
+	plt.gca().set_aspect(0.75*(xlim[1] - xlim[0])/(ylim[1] - ylim[0]))
+
+	print('-> %s' % output)
+	plt.xlabel(TITLE[var])
+	if opts['ylabel']:
+		plt.ylabel('Frequency')
+	if opts['legend']:
+		plt.legend(handles=legend, loc=opts['legend_loc'])
+
+	plt.subplots_adjust(
+		left=0.17,
+		right=0.95,
+		top=0.98,
+		bottom=0.16
+	)
+
+	plt.savefig(output, dpi=600, facecolor='none')
